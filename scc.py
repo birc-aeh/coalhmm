@@ -1,3 +1,5 @@
+from sets import ImmutableSet as iset
+
 class Tarjan:
     def __init__(self, N, edges):
         self.S = []
@@ -40,13 +42,44 @@ def build_scc(states, edges):
     for i in xrange(len(V)):
         for v in V[i]:
             containing_c[v] = i
-    #print containing_c
     for i in xrange(len(V)):
         comp = V[i]
         for a in comp:
             for b in edges[a]:
                 E[i].add(containing_c[b])
-                #E[containing_c[b]].add(i)
         E[i].remove(i)
 
     return V, E
+
+class SCCGraph:
+    def __init__(self, states, edges):
+        self.states_rev = {}
+        for k, v in states.iteritems():
+            self.states_rev[v] = k
+
+        edges2 = [[] for i in xrange(len(states))]
+        for (a,t,b) in edges:
+            edges2[a].append(b)
+        self.V, self.E = build_scc(states, edges2)
+
+    def add_transitive_edges(self):
+        def transitive_edges(a, S, newE):
+            for v in S:
+                newE[v].add(a)
+            S.append(a)
+            for b in self.E[a]:
+                transitive_edges(b, S, newE)
+            S.pop()
+        E2 = [set() for x in self.E]
+        transitive_edges(len(self.V)-1, [], E2)
+        self.E = E2
+
+    def initial(self):
+        return self.states_rev[0]
+    def state(self, v):
+        return self.states_rev[self.V[v][0]]
+    def project_state(self, s, side):
+        return iset([x[side] for x in s if x[side] != iset()])
+    def projected(self, v, side):
+        return self.project_state(self.state(v), side)
+

@@ -1,10 +1,13 @@
-from statespace_generator import BasicCoalSystem
-from scc import build_scc
 from scipy import *
 from scipy.linalg import expm
 from sets import ImmutableSet as iset
-from intervals import *
 
+from intervals import *
+from statespace_generator import BasicCoalSystem
+from scc import build_scc, SCCGraph
+from tree import *
+
+#print genRateMatrix(states,edges,C=1.0,R=1.0e-4)
 def genRateMatrix(states,edges,**mapping):
     def f(t):
         return mapping[t]
@@ -22,7 +25,16 @@ def genRateMatrix(states,edges,**mapping):
     M = matrix(M)
     return M
 
-def prettify_set(s):
+def prettify_state(s):
+    """Convert a coal system state to something nicer.
+    
+    example:
+      iset([(iset([3]), iset([3])),
+            (iset([1]), iset([1])),
+            (iset([2]), iset([2]))])
+    to:
+      {3, 1, 2}, {3, 1, 2}
+    """
     def f(s, side, d):
         if d == 0:
             tmp = [f(sub, side, d+1) for sub in s if len(s) > 0]
@@ -34,110 +46,35 @@ def prettify_set(s):
 
 x = BasicCoalSystem([1,2,3])
 states, edges = x.compute_state_space()
-states_rev = {}
-for k, v in states.iteritems():
-    states_rev[v] = k
-#print sorted(states.values())
-edges2 = [[] for i in xrange(len(states))]
-for (a,t,b) in edges:
-    edges2[a].append(b)
-V, E = build_scc(states, edges2)
-#print '\n\n'.join(['\n'.join(map(prettify_set,[states_rev[x] for x in sorted(c)])) for c in V])
-#print "len:", len(V)
-#print E
-#print genRateMatrix(states,edges,C=1.0,R=1.0e-4)
 
-#for n,t,m in edges:
-#    print '%s -> %s -> %s' % (str(n),t,str(m))
+G = SCCGraph(states, edges)
+G.add_transitive_edges()
 
-
-
-#for i in xrange(len(states_rev)):
-#    print '%d : %s' % (i,prettify_set(states_rev[i]))
-
-
-def transitive_edges(a, S, newE):
-    for v in S:
-        newE[v].add(a)
-    S.append(a)
-    for b in E[a]:
-        transitive_edges(b, S, newE)
-    S.pop()
-E2 = [set() for x in E]
-transitive_edges(len(V)-1, [], E2)
-#print E
-#print E2
-
-if True:
+if False:
     f = file("graph", "w")
     f.write("digraph {\n")
-    for a in xrange(len(E)):
-        f.write('%i [label="%s"]\n' % (a, prettify_set(states_rev[V[a][0]])))
-        for b in E2[a]:
+    for a in xrange(len(G.E)):
+        f.write('%i [label="%s"]\n' % (a, prettify_state(states_rev[V[a][0]])))
+        for b in G.E[a]:
             f.write("%i -> %i\n" % (a, b))
     f.write("}\n")
     f.close()
 
+def set_filler(S):
+    def f(s):
+        S.add(make_tree(G, s))
+    return f
 
-def project(s, side):
-    return iset([x[side] for x in s if x[side] != iset()])
-
-def make_tree(s):
-    tree = None
-    initial = project(states_rev[0], 0)
-    used = set()
-    for i in xrange(len(s)):
-        if i == 0:
-            B = project(states_rev[V[s[i]][0]], 0)
-            if len(initial) != len(B):
-                joined_from_the_start = initial - B
-                tree = (0, [x for x in joined_from_the_start])
-                for x in joined_from_the_start:
-                    used.add(x)
-        elif s[i] != s[i-1]:
-            A = project(states_rev[V[s[i-1]][0]], 0)
-            B = project(states_rev[V[s[i]][0]], 0)
-            #print A
-            #print B
-            #print "merged:",(A-B)
-            A = iset([x for x in A if len(x) == 1])
-            joined = A-B
-            if len(joined) == 0:
-                continue
-            for x in joined:
-                used.add(x)
-            if tree == None:
-                tree = (i, [x for x in joined])
-            else:
-                tree = (i, [tree] + [x for x in joined])
-    if len(initial) == len(used):
-        return tree
-    rest_joined_at = len(s)
-    rest = [x for x in initial if not x in used]
-    return (rest_joined_at, (tree and [tree] or []) + rest)
-
-#test = [24, 23, 23, 23, 23, 23, 20, 15]#[224, 217, 216, 208, 130, 0]
-
-def tree_to_newick(t):
-    if isinstance(t, iset):
-        return "".join([str(x) for x in t])
-    else:
-        return "(" + ", ".join(map(tree_to_newick, t[1])) + "):" + str(t[0])
-
-def test(s):
-    print s, "-->", tree_to_newick(make_tree(s))
-
+unique_topologies = set()
 def dfs(a, S, E):
     S.append(a)
     if len(E[a]) == 0:
-        print " -- starting on path:", S
-        do_on_all_distributions(S, 5, test)
+        do_on_all_distributions(S, 5, set_filler(unique_topologies))
     for b in E[a]:
         dfs(b, S, E)
     S.pop()
 
-dfs(len(V)-1, [], E2)
-
-#for i in test:
-#    print '%d : %s' % (i,prettify_set(states_rev[V[i][0]]))
+dfs(len(G.V)-1, [], G.E)
+for t in unique_topologies:
+    print tree_to_newick(t)
 
