@@ -107,15 +107,12 @@ def make_tree(s):
             for x in joined:
                 used.add(x)
             if tree == None:
-                tree = (i-1, [x for x in joined])
+                tree = (i, [x for x in joined])
             else:
-                tree = (i-1, [tree] + [x for x in joined])
+                tree = (i, [tree] + [x for x in joined])
     if len(initial) == len(used):
         return tree
-    if len(used) == 0:
-        rest_joined_at = 0
-    else:
-        rest_joined_at = len(s)
+    rest_joined_at = len(s)
     rest = [x for x in initial if not x in used]
     return (rest_joined_at, (tree and [tree] or []) + rest)
 
