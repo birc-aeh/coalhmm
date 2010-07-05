@@ -1,24 +1,19 @@
-asd = []
-def print_all_distributions(S, I):
+def do_on_all_distributions(S, I, visit):
+    buffer = [S[0]] * I
     def f(S, S_i, I, I_i):
-        print asd
         if S_i == len(S):
             return
         for i in xrange(I_i, I):
-            asd.append((i, S[S_i]))
+            r = buffer[i:]
+            buffer[i:] = [S[S_i]] * len(r)
+            visit(buffer)
             f(S, S_i+1, I, i+1)
-            asd.pop()
-    def g(S, S_i, I, I_i):
-        print asd
-        if S_i == len(S):
-            return
-        for i in xrange(I_i, I):
-            r = asd[i:]
-            asd[i:] = [S[S_i]] * len(r)
-            g(S, S_i+1, I, i+1)
-            asd[i:] = r
-    asd = [S[0]] * I
-    for i in xrange(I):
-        g(S, i, I, 0)
+            buffer[i:] = r
+    visit(buffer)
+    for i in xrange(1,len(S)):
+        f(S, i, I, 0)
 
-print_all_distributions("abc", 3)
+if __name__ == "__main__":
+    def p(s):
+        print s
+    do_on_all_distributions("abc", 4, p)

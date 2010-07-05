@@ -42,8 +42,8 @@ edges2 = [[] for i in xrange(len(states))]
 for (a,t,b) in edges:
     edges2[a].append(b)
 V, E = build_scc(states, edges2)
-print '\n\n'.join(['\n'.join(map(prettify_set,[states_rev[x] for x in sorted(c)])) for c in V])
-print "len:", len(V)
+#print '\n\n'.join(['\n'.join(map(prettify_set,[states_rev[x] for x in sorted(c)])) for c in V])
+#print "len:", len(V)
 #print E
 #print genRateMatrix(states,edges,C=1.0,R=1.0e-4)
 
@@ -52,8 +52,8 @@ print "len:", len(V)
 
 
 
-for i in xrange(len(states_rev)):
-    print '%d : %s' % (i,prettify_set(states_rev[i]))
+#for i in xrange(len(states_rev)):
+#    print '%d : %s' % (i,prettify_set(states_rev[i]))
 
 
 def transitive_edges(a, S, newE):
@@ -65,8 +65,8 @@ def transitive_edges(a, S, newE):
     S.pop()
 E2 = [set() for x in E]
 transitive_edges(len(V)-1, [], E2)
-print E
-print E2
+#print E
+#print E2
 
 if True:
     f = file("graph", "w")
@@ -78,13 +78,64 @@ if True:
     f.write("}\n")
     f.close()
 
+
+def project(s, side):
+    return iset([x[side] for x in s if x[side] != iset()])
+
+def make_tree(s):
+    tree = None
+    initial = set([x for x in project(states_rev[0], 0)])
+    used = set()
+    for i in xrange(1, len(s)):
+        if s[i] != s[i-1]:
+            A = project(states_rev[V[s[i-1]][0]], 0)
+            B = project(states_rev[V[s[i]][0]], 0)
+            #print A
+            #print B
+            #print "merged:",(A-B)
+            A = iset([x for x in A if len(x) == 1])
+            joined = A-B
+            for x in joined:
+                used.add(x)
+            if len(joined) == 0:
+                pass
+            elif tree == None:
+                tree = (i-1, [x for x in joined])
+            else:
+                tree = (i-1, [tree] + [x for x in joined])
+    if len(initial) == len(used):
+        return tree
+    if len(used) == 0:
+        rest_joined_at = 0
+    else:
+        rest_joined_at = len(s)
+    for x in used:
+        initial.remove(x)
+    return (rest_joined_at, (tree and [tree] or []) + [x for x in initial])
+
+#test = [24, 23, 23, 23, 23, 23, 20, 15]#[224, 217, 216, 208, 130, 0]
+
+def tree_to_newick(t):
+    if isinstance(t, iset):
+        return "".join([str(x) for x in t])
+    else:
+        return "(" + ", ".join(map(tree_to_newick, t[1])) + "):" + str(t[0])
+#print tree_to_newick(make_tree([24, 0, 0, 0, 0]))
+
+def test(s):
+    print s, "-->", tree_to_newick(make_tree(s))
+
 def dfs(a, S, E):
     S.append(a)
     if len(E[a]) == 0:
-        print "path:", S
-        print_all_distributions(S, 6)
+        print " -- starting on path:", S
+        do_on_all_distributions(S, 5, test)
     for b in E[a]:
         dfs(b, S, E)
     S.pop()
 
 dfs(len(V)-1, [], E2)
+
+#for i in test:
+#    print '%d : %s' % (i,prettify_set(states_rev[V[i][0]]))
+
