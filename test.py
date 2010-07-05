@@ -84,10 +84,17 @@ def project(s, side):
 
 def make_tree(s):
     tree = None
-    initial = set([x for x in project(states_rev[0], 0)])
+    initial = project(states_rev[0], 0)
     used = set()
-    for i in xrange(1, len(s)):
-        if s[i] != s[i-1]:
+    for i in xrange(len(s)):
+        if i == 0:
+            B = project(states_rev[V[s[i]][0]], 0)
+            if len(initial) != len(B):
+                joined_from_the_start = initial - B
+                tree = (0, [x for x in joined_from_the_start])
+                for x in joined_from_the_start:
+                    used.add(x)
+        elif s[i] != s[i-1]:
             A = project(states_rev[V[s[i-1]][0]], 0)
             B = project(states_rev[V[s[i]][0]], 0)
             #print A
@@ -95,11 +102,11 @@ def make_tree(s):
             #print "merged:",(A-B)
             A = iset([x for x in A if len(x) == 1])
             joined = A-B
+            if len(joined) == 0:
+                continue
             for x in joined:
                 used.add(x)
-            if len(joined) == 0:
-                pass
-            elif tree == None:
+            if tree == None:
                 tree = (i-1, [x for x in joined])
             else:
                 tree = (i-1, [tree] + [x for x in joined])
@@ -109,9 +116,8 @@ def make_tree(s):
         rest_joined_at = 0
     else:
         rest_joined_at = len(s)
-    for x in used:
-        initial.remove(x)
-    return (rest_joined_at, (tree and [tree] or []) + [x for x in initial])
+    rest = [x for x in initial if not x in used]
+    return (rest_joined_at, (tree and [tree] or []) + rest)
 
 #test = [24, 23, 23, 23, 23, 23, 20, 15]#[224, 217, 216, 208, 130, 0]
 
@@ -120,7 +126,6 @@ def tree_to_newick(t):
         return "".join([str(x) for x in t])
     else:
         return "(" + ", ".join(map(tree_to_newick, t[1])) + "):" + str(t[0])
-#print tree_to_newick(make_tree([24, 0, 0, 0, 0]))
 
 def test(s):
     print s, "-->", tree_to_newick(make_tree(s))
