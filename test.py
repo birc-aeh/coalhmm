@@ -55,37 +55,44 @@ if False:
     f = file("graph", "w")
     f.write("digraph {\n")
     for a in xrange(len(G.E)):
-        f.write('%i [label="%s"]\n' % (a, prettify_state(states_rev[V[a][0]])))
+        f.write('%i [label="%s"]\n' % (a, prettify_state(G.state(a))))
         for b in G.E[a]:
             f.write("%i -> %i\n" % (a, b))
     f.write("}\n")
     f.close()
 
-def set_filler(S):
+def set_filler(Sa, Sb):
+    pairs = set()
     def f(s):
-        S.add(make_tree(G, s))
+        ta = make_tree(G, s, 0)
+        tb = make_tree(G, s, 1)
+        Sa.add(ta)
+        Sb.add(tb)
+        assert (ta, tb) not in pairs
+        pairs.add((ta,tb))
     return f
 
-unique_topologies = set()
+unique_L = set()
+unique_R = set()
 def dfs(a, S, E):
     S.append(a)
     if len(E[a]) == 0:
-        do_on_all_distributions(S, 5, set_filler(unique_topologies))
+        do_on_all_distributions(S, 5, set_filler(unique_L, unique_R))
     for b in E[a]:
         dfs(b, S, E)
     S.pop()
 
 dfs(len(G.V)-1, [], G.E)
-#for t in unique_topologies:
-#    print tree_to_newick(t)
-
+print len(unique_L), len(unique_R)
+for l,r in zip(unique_L, unique_R):
+    print tree_to_newick(l), tree_to_newick(r)
 
 theta = 20000.0 * 20 * 1e-9
 interval_times = [0.0, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 #test_tree = (4, iset([iset([1]), (2, iset([iset([0]), iset([2])]))]))
 
-Em, tmap = build_emission_matrix(unique_topologies, 3, interval_times, theta)
+#Em, tmap = build_emission_matrix(unique_L, 3, interval_times, theta)
 
-print Em[0,:]
-print "sum :", sum(Em[0,:])
+#print Em[0,:]
+#print "sum :", sum(Em[0,:])
 

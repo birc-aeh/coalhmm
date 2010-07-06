@@ -1,24 +1,24 @@
 from sets import ImmutableSet as iset
 
-def make_tree(G, s):
+def make_tree(G, s, side):
     """ Given a path, s, through the graph, G, create a tree with timestamps.
         The tree is either a leaf (an iset with 1 member) or a node: a tuple
         with the timestamp and an iset of children.
     """
     tree = None
-    initial = G.project_state(G.initial(), 0)
+    initial = G.project_state(G.initial(), side)
     used = set()
     for i in xrange(len(s)):
         if i == 0:
-            B = G.projected(s[i], 0)
+            B = G.projected(s[i], side)
             if len(initial) != len(B):
                 joined_from_the_start = initial - B
                 tree = (0, joined_from_the_start)
                 for x in joined_from_the_start:
                     used.add(x)
         elif s[i] != s[i-1]:
-            A = G.projected(s[i-1], 0)
-            B = G.projected(s[i], 0)
+            A = G.projected(s[i-1], side)
+            B = G.projected(s[i], side)
             A = iset([x for x in A if len(x) == 1])
             joined = A-B
             if len(joined) == 0:
