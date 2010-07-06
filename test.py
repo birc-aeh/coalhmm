@@ -31,9 +31,11 @@ class Model:
     def __init__(self):
         pass
 
-    def prepare(self, n):
+    def prepare(self, nleaves, nintervals):
+        self.nleaves = nleaves
+        self.nintervals = nintervals
         # Build transition system
-        x = BasicCoalSystem(range(n))
+        x = BasicCoalSystem(range(nleaves))
         states, edges = x.compute_state_space()
         # Build SCC graph and do transitive closure
         G = SCCGraph(states, edges)
@@ -71,10 +73,11 @@ class Model:
         theta = 1 / C
         if interval_times == None:
             interval_times = [0.0] + [c * theta for c in [.5,1,2,3,4]]
+        assert len(interval_times) == self.nintervals + 1
 
         tmap = self.tree_map
         G = self.G
-        Em = build_emission_matrix(tmap.keys(), tmap, 3, interval_times, theta)
+        Em = build_emission_matrix(tmap.keys(), tmap, self.nleaves, interval_times, theta)
 
         def genRateMatrix(states,edges,**mapping):
             def f(t):
@@ -146,7 +149,7 @@ theta = 20000.0 * 20 * 1e-9
 rho = 20000.0 * 0.01 / 1e6
 
 model = Model()
-model.prepare(2)
+model.prepare(2, 5)
 
 E, T, pi = model.run(rho * (1.0 / theta), 1.0 / theta)
 #print "lala"
