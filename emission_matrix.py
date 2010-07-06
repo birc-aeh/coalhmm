@@ -1,9 +1,10 @@
 from scipy import *
 from sets import ImmutableSet as iset
 
-def first(s):
+def only(s):
     """At the leaves of a tree, there is always isets of size one.
        This method is used to extract that member."""
+    assert len(s) == 1, "All leaves must be of size one"
     for x in s:
         return x
 
@@ -31,7 +32,7 @@ def emission_test(tree, S, cols):
     def visit(t):
         if isinstance(t, iset): # leaf
             res = array([0.0, 0.0, 0.0, 0.0])
-            res[cols[first(t)]] = 1.0
+            res[cols[only(t)]] = 1.0
             return 0, res
         else: # node
             j, children = t
