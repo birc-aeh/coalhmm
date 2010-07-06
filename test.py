@@ -44,7 +44,7 @@ def prettify_state(s):
     return "{" + f(s, 0, 0) + "}, {" + f(s, 1, 0) + "}"
 
 
-x = BasicCoalSystem([1,2,3])
+x = BasicCoalSystem([0,1,2])
 states, edges = x.compute_state_space()
 
 G = SCCGraph(states, edges)
@@ -75,6 +75,76 @@ def dfs(a, S, E):
     S.pop()
 
 dfs(len(G.V)-1, [], G.E)
-for t in unique_topologies:
-    print tree_to_newick(t)
+#for t in unique_topologies:
+#    print tree_to_newick(t)
+
+
+I = 5
+interval_times = [0.0, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+def jukes_cantor(dt):
+    gamma = 0.25 + 0.75 * exp(-4*dt)
+    delta = 0.25 - 0.25 * exp(-4*dt)
+    return matrix( [[gamma, delta, delta, delta],
+                    [delta, gamma, delta, delta],
+                    [delta, delta, gamma, delta],
+                    [delta, delta, delta, gamma]])
+  
+
+S = [[None] * I for i in xrange(I)]
+for i in xrange(I):
+    for j in xrange(i, I):
+        dt = interval_times[j]-interval_times[i]
+        S[i][j] = jukes_cantor(dt)
+
+for i in xrange(I):
+    for j in xrange(i+1, I):
+        #print S[i][j]
+        pass
+
+theta = 20000.0 * 20 * 1e-9
+
+def D(i, j):
+    t = interval_times
+    def m(i):
+        if i + 1 == len(t):
+            dt = 0.0
+            a = 0.0
+        else:
+            dt = t[i+1] - t[i]
+            a = exp(-dt/theta)
+        return theta - (dt * a)/(1 - a)
+    dt_i = t[i+1] - t[i]
+    return t[j] - t[i+1] + m(j) + dt_i - m(i)
+
+
+test_tree = (4, iset([iset([1]), (2, iset([iset([0]), iset([2])]))]))
+
+def first(s):
+    for x in s:
+        return x
+
+to_char = ['A', 'C', 'G', 'T']
+def emission_test(tree, S, cols):
+    def visit(t):
+        if isinstance(t, iset): # leaf
+            res = array([0.0, 0.0, 0.0, 0.0])
+            res[cols[first(t)]] = 1.0
+            return 0, res
+        else: # node
+            j, children = t
+            prob_j = ones(4)
+            for arr in map(visit, children):
+                i, prob_i = arr
+                D_ij = D(i, j)
+                S_ij = S[i][j]
+                prob = zeros(4)
+                for y in xrange(4):
+                    for x in xrange(4):
+                        prob[y] += D_ij * prob_i[x] * S_ij[x, y] 
+                prob_j = prob_j * prob
+            return j, prob_j
+    return array([0.25, 0.25, 0.25, 0.25]) * visit(tree)[1]
+
+print tree_to_newick(test_tree)
+print emission_test(test_tree, S, [0,0,1])
 
