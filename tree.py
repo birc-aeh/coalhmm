@@ -31,7 +31,7 @@ def make_tree(G, s, side):
                 tree = (i, iset([tree]).union(joined))
     if len(initial) == len(used):
         return tree
-    rest_joined_at = len(s)-1
+    rest_joined_at = len(s)
     rest = iset([x for x in initial if not x in used])
     return (rest_joined_at, (tree and iset([tree]) or iset()).union(rest))
 

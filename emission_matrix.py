@@ -19,66 +19,52 @@ def cols_to_index(cols):
 def index_to_cols(value, n):
     return map(lambda i: (value >> 2*i) & 3, xrange(n))
 
+def jukes_cantor(a, b, dt):
+    if a == b:
+        return 0.25 + 0.75 * exp(-4*dt)
+    else:
+        return 0.25 - 0.25 * exp(-4*dt)
 
-def jukes_cantor(dt):
-    gamma = 0.25 + 0.75 * exp(-4*dt)
-    delta = 0.25 - 0.25 * exp(-4*dt)
-    return matrix( [[gamma, delta, delta, delta],
-                    [delta, gamma, delta, delta],
-                    [delta, delta, gamma, delta],
-                    [delta, delta, delta, gamma]])
+def emission_row(tree, cols, times, theta):
+    def m(i):
+        if i + 1 == len(times):
+            dt = 0.0
+            a = 0.0
+        else:
+            dt = times[i+1] - times[i]
+            a = exp(-dt/theta)
+        return theta - (dt * a)/(1 - a)
 
-def emission_test(tree, S, cols):
     def visit(t):
         if isinstance(t, iset): # leaf
             res = array([0.0, 0.0, 0.0, 0.0])
             res[cols[only(t)]] = 1.0
-            return 0, res
+            return 0.0, res
         else: # node
             j, children = t
+            m_j = m(j)
             prob_j = ones(4)
-            for i, prob_i in map(visit, children):
-                S_ij = S[i][j]
+            for m_i, prob_i in map(visit, children):
+                dt = m_j - m_i
                 prob = zeros(4)
                 for y in xrange(4):
                     for x in xrange(4):
-                        prob[y] += prob_i[x] * S_ij[x, y] 
+                        prob[y] += prob_i[x] * jukes_cantor(x,y,dt) # S_ij[x, y] 
                 prob_j = prob_j * prob
-            return j, prob_j
+            return m_j, prob_j
     return sum(array([0.25, 0.25, 0.25, 0.25]) * visit(tree)[1])
 
 
-def build_emission_matrix(topologies, nleaves, interval_times, theta):
-    I = len(interval_times)-1
-    def D(i, j):
-        t = interval_times
-        def m(i):
-            if i + 1 == len(t):
-                dt = 0.0
-                a = 0.0
-            else:
-                dt = t[i+1] - t[i]
-                a = exp(-dt/theta)
-            return theta - (dt * a)/(1 - a)
-        dt_i = t[i+1] - t[i]
-        return t[j] - t[i+1] + m(j) + dt_i - m(i)
-
-    S = [[None] * I for i in xrange(I)]
-    for i in xrange(I):
-        for j in xrange(i, I):
-            S[i][j] = jukes_cantor(D(i,j))
-
-    res = []
-    topology_map = []
+def build_emission_matrix(topologies, tmap, nleaves, interval_times, theta):
+    I = len(interval_times)
+    res = [None] * len(tmap)
     for topo in topologies:
         temp_res = []
-        topology_map.append(topo)
         for cols_v in xrange(1 << nleaves*2):
             cols = index_to_cols(cols_v, nleaves)
-            row = emission_test(topo, S, cols)
+            row = emission_row(topo, cols, interval_times, theta)
             temp_res.append(row)
-        res.append(temp_res)
+        res[tmap[topo]] = temp_res
 
     # The index of the matrix is [topo, variant (AAA, AAC, etc.)]
-    # topology_map gives a mapping from row index to the corresponding tree.
-    return matrix(res), topology_map
+    return matrix(res)
