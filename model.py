@@ -4,7 +4,7 @@ from sets import ImmutableSet as iset
 
 from intervals import *
 from statespace_generator import BasicCoalSystem
-from scc import build_scc, SCCGraph
+from scc import SCCGraph
 from tree import *
 from emission_matrix import *
 from time_plot import *
@@ -63,8 +63,15 @@ class Model:
         self.paths_final = paths_final
 
     def run(self, R, C, interval_times=None):
+        """Generates the parts needed for the HMM.
+        Inititial state probabilities,
+        Transition matrix, and
+        Emmision matrix.
+        Additionally returns the rate matrix used.
+        """
         theta = 1 / C
         if interval_times == None:
+            # TODO: choose better times?
             interval_times = [0.0] + [c * theta for c in [.5,1,2,3,4]]
         assert len(interval_times) == self.nintervals + 1
 
@@ -75,33 +82,33 @@ class Model:
         def genRateMatrix(states,edges,**mapping):
             def f(t):
                 return mapping[t]
-
             n_states = len(states)
-            M = zeros((n_states, n_states))
-            M.shape = n_states, n_states
+            M = matrix(zeros((n_states, n_states)))
             for (a,t,b) in edges:
                 M[a,b] = f(t)
             for i in xrange(n_states):
                 row = M[i, :]
                 M[i,i] = -sum(row)
-
-            M = matrix(M)
             return M
 
-        Ps = []
+        P = []
         V, E = G.originalGraph()
         Q = genRateMatrix(V, E, C=C, R=R)
         for i in xrange(len(interval_times)-1):
             dt = interval_times[i+1] - interval_times[i]
-            Ps.append(expm(Q*dt))
+            P.append(expm(Q*dt))
 
+        # Calculate the joint probability for a path through the graph
+        # (The path must have an entry for each time interval)
         def joint_prob(V, G, path):
+            # An extra state is added, as all paths should start i state 0,
+            # meaning all species are seperate.
             component_path = [[0]] + [G.all_states(p) for p in path]
             pi_prev = zeros(len(V))
             pi_prev[0] = 1.0
             for i in xrange(len(path)):
                 pi_curr = zeros(len(V))
-                P_i = Ps[i]
+                P_i = P[i]
                 for s in component_path[i+1]:
                     for x in component_path[i]:
                         pi_curr[s] += pi_prev[x] * P_i[x,s]
@@ -113,15 +120,16 @@ class Model:
         total_joint = 0.0
         for p in self.paths_final:
             joint = joint_prob(V, G, p)
-            #print p,">",joint
             total_joint += joint
-            ta = tmap[make_tree(G, p, 0)]
-            tb = tmap[make_tree(G, p, 1)]
-            J[ta, tb] = joint
+            a = tmap[make_tree(G, p, 0)]
+            b = tmap[make_tree(G, p, 1)]
+            J[a, b] = joint
         # TODO: reasonable epsilon?
         assert abs(total_joint - 1.0) < 0.0001
 
+        # The starting probabilities is equal to the row-sums of J
         pi = sum(J, axis=0)
+        # The transitions have to be normalized
         T = J/pi
         return pi, T, Em, Q
 

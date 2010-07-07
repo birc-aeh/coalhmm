@@ -1,6 +1,9 @@
 from sets import ImmutableSet as iset
 
-class Tarjan:
+# A standard implementation of Tarjans algorithm.
+# The class is just to keep track of some state instead of having a lot of
+# params.
+class _Tarjan:
     def __init__(self, N, edges):
         self.S = []
         self.SCC = []
@@ -32,8 +35,8 @@ class Tarjan:
             self.SCC.append(component)
 
 
-def build_scc(states, edges):
-    t = Tarjan(len(states), edges)
+def _build_scc(states, edges):
+    t = _Tarjan(len(states), edges)
     for v in xrange(len(states)):
         t.tarjan(v)
     V = t.SCC
@@ -62,12 +65,13 @@ class SCCGraph:
         edges2 = [[] for i in xrange(len(states))]
         for (a,t,b) in edges:
             edges2[a].append(b)
-        self.V, self.E = build_scc(states, edges2)
+        self.V, self.E = _build_scc(states, edges2)
 
     def originalGraph(self):
         return self.original_states, self.original_edges
 
     def add_transitive_edges(self):
+        """Give each component extra edges to everything that is reachable"""
         def transitive_edges(a, S, newE):
             for v in S:
                 newE[v].add(a)
@@ -80,13 +84,19 @@ class SCCGraph:
         self.E = E2
 
     def initial(self):
+        """Returns the initial state, where all species are separate"""
         return self.states_rev[0]
     def all_states(self, v):
+        """Returns all the states in a component"""
         return [x for x in self.V[v]]
     def state(self, v):
+        """Returns a representative state for a component"""
         return self.states_rev[self.V[v][0]]
     def project_state(self, s, side):
+        """Extracts either the left or right side from a state"""
         return iset([x[side] for x in s if x[side] != iset()])
     def projected(self, v, side):
+        """Extracts either the left or right side from a representative of the
+        component"""
         return self.project_state(self.state(v), side)
 
