@@ -1,22 +1,3 @@
-def do_on_all_distributions(S, I, visit):
-    buffer = [S[0]] * I
-    seen = set()
-    def f(S, S_i, I, I_i):
-        if S_i == len(S):
-            return
-        for i in xrange(I_i, I):
-            r = buffer[i:]
-            buffer[i:] = [S[S_i]] * len(r)
-            if buffer not in seen:
-                visit(buffer)
-                seen.add(buffer)
-            f(S, S_i+1, I, i+1)
-            buffer[i:] = r
-    visit(buffer)
-    seen.add(buffer)
-    for i in xrange(1,len(S)):
-        f(S, i, I, 0)
-
 def enumerate_all_path_distributions(componentList, noTimePoints):
     '''Creates all sequences of noTimePoints time points assigned
     components componentList in a monotone sequence.'''
@@ -40,8 +21,3 @@ def enumerate_all_transitions(SCCPaths, noTimePoints):
             states.add(assignment)
     return states
 
-
-if __name__ == "__main__":
-    def p(s):
-        print s
-    do_on_all_distributions("abc", 4, p)
