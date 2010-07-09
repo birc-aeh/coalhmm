@@ -21,3 +21,7 @@ def enumerate_all_transitions(SCCPaths, noTimePoints):
             states.add(assignment)
     return states
 
+if __name__ == "__main__":
+    for p in enumerate_all_path_distributions([(0, 1),(0,2),(1,0)], 4):
+        print p
+

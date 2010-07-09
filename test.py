@@ -20,6 +20,7 @@ model = Model(2, 5)
 
 #time_plot(model.G, Q, 0.004)
 
+
 alignments = readAlignment("/users/tth/work/simpipe2/3/seq0.fasta")
 
 left, right = alignments["'0'"], alignments["'1'"]

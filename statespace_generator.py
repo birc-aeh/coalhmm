@@ -205,11 +205,11 @@ def prettify_state(s):
     return "{" + f(s, 0, 0) + "}, {" + f(s, 1, 0) + "}"
 
 if __name__ == "__main__":
-    from scc import SCCGraph
+    from scc import *
     nleaves = 2
     system = SeperatedPopulationCoalSystem(range(nleaves))
     states, edges = system.compute_state_space()
-    mappings = [[2, 2, 4]]
+    mappings = [[0, 0, 1]]#, [0, 0]]
     SCCs = [SCCGraph(states, edges, 0)]
     epoch = 1
     for mapping in mappings:
@@ -221,11 +221,12 @@ if __name__ == "__main__":
         G.add_transitive_edges()
         SCCs.append(G)
 
-    final_graph = SCCGraph.merge(SCCGraph({}, []), SCCs[0])
+    G = EpochSeperatedSCCGraph()
+    G.addSubGraph(SCCs[0])
     projections = []
     for i, new in enumerate(SCCs[1:]):
         #print "new SCC, mapping: ", mappings[i]
-        final_graph = SCCGraph.merge(new, final_graph)
+        G.addSubGraph(new)
         old = SCCs[i] # note: i starts at 0, so 'new' is at i+1
         tmp_proj = []
         for c in xrange(len(old.V)):
@@ -235,18 +236,21 @@ if __name__ == "__main__":
                 #print prettify_state(old_state), "-->"
                 #print prettify_state(new_state)
                 #print ""
-                tmp_proj.append(final_graph.add_component_edge(old_state, new_state))
+                m = G.add_component_edge(i, old_state, i+1,new_state)
+                tmp_proj.append(m)
         projections.append(tmp_proj)
     print projections
-    print final_graph.V
-    print final_graph.E
-    print final_graph.epochs
+    print G.E
+    def p(s):
+        print s
+    G.all_paths(p)
     from model import Model
-    m = Model(nleaves, 5, final_graph)
+    m = Model(nleaves, 5, G)
     theta = 2*30000.0 * 25 * 1e-9
     C = 1.0 / theta
     R = 1.5e-8 / 1.0e-9
-    pi, T, E, Q = m.run(R, C)
+    interval_times = [[0.0] + [c*theta for c in [.5,1,2]], [c*theta for c in [3,4]]]
+    pi, T, E, Q = m.run(R, C, interval_times, projections)
     print pi, sum(pi)
     print T
     #print E

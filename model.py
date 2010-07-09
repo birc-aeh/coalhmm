@@ -4,7 +4,7 @@ from sets import ImmutableSet as iset
 
 from intervals import *
 from statespace_generator import BasicCoalSystem
-from scc import SCCGraph
+from scc import SCCGraph, EpochSeperatedSCCGraph
 from tree import *
 from emission_matrix import *
 from time_plot import *
@@ -37,19 +37,16 @@ class Model:
             x = BasicCoalSystem(range(nleaves))
             states, edges = x.compute_state_space()
             # Build SCC graph and do transitive closure
-            G = SCCGraph(states, edges)
-            G.add_transitive_edges()
+            sG = SCCGraph(states, edges)
+            sG.add_transitive_edges()
+            G = EpochSeperatedSCCGraph()
+            G.addSubGraph(sG)
         self.G = G
         # Build a list of all paths through the SCC graph
         paths = []
-        def dfs(a, S, E):
-            S.append(a)
-            if len(E[a]) == 0:
-                paths.append(S[:])
-            for b in E[a]:
-                dfs(b, S, E)
-            S.pop()
-        dfs(len(G.V)-1, [], G.E)
+        def paths_filler(S):
+            paths.append(S[:])
+        G.all_paths(paths_filler)
         # Build all distributions of the paths over our intervals
         paths_final = []
         tree_map = {}
@@ -62,7 +59,7 @@ class Model:
         self.ntrees = len(tree_map)
         self.paths_final = paths_final
 
-    def run(self, R, C, interval_times=None):
+    def run(self, R, C, epoch_bps=None, mappings=[]):
         """Generates the parts needed for the HMM.
         Inititial state probabilities,
         Transition matrix, and
@@ -70,18 +67,24 @@ class Model:
         Additionally returns the rate matrix used.
         """
         theta = 1 / C
-        if interval_times == None:
-            # TODO: choose better times?
-            interval_times = [[0.0] + [c * theta for c in [.5,1,2,3,4]]]
-        assert sum(map(len,interval_times)) == self.nintervals + 1
+        if epoch_bps == None:
+            # TODO: choose better breakpoints?
+            epoch_bps = [[0.0] + [c * theta for c in [.5,1,2,3,4]]]
+
+        epoch_sizes = self.G.getEpochSizes()
+        nepochs = len(epoch_sizes)
+        assert sum(map(len,epoch_bps)) == self.nintervals + 1, \
+                "We need n+1 breakpoints, for n intervals"
+        assert len(mappings) == nepochs - 1, \
+                "We need n-1 mappings for n epochs"
 
         tmap = self.tree_map
         G = self.G
-        times = []
-        for x in interval_times:
+        breakpoints = []
+        for x in epoch_bps:
             for t in x:
-                times.append(t)
-        Em = build_emission_matrix(tmap.keys(), tmap, self.nleaves, times, theta)
+                breakpoints.append(t)
+        Em = build_emission_matrix(tmap.keys(), tmap, self.nleaves, breakpoints, theta)
 
         def genRateMatrix(n_states,edges,**mapping):
             def f(t):
@@ -95,51 +98,60 @@ class Model:
             return M
 
         P = []
-        V, E = G.originalGraph()
-        allQ = [genRateMatrix(len(V), E, C=C, R=R) for i in xrange(len(interval_times))]
+        epochQ = []
         Qs = []
         in_epoch = []
-        for i, Q in enumerate(allQ):
-            for x in xrange(len(interval_times[i])):
-                Qs.append(Q)
-                in_epoch.append(i)
-        for j in xrange(len(times)-1):
-            dt = times[j+1] - times[j]
+        for e in xrange(len(epoch_bps)):
+            V, E = G.originalGraph(e)
+            Q = genRateMatrix(len(V), E, C=C, R=R)
+            epochQ.append(Q)
+            nbps = len(epoch_bps[e])
+            Qs = Qs + [Q] * nbps
+            in_epoch = in_epoch + [e] * nbps
+
+        projections = []
+        for j in xrange(len(breakpoints)-1):
+            dt = breakpoints[j+1] - breakpoints[j]
             P.append(expm(Qs[j]*dt))
-            # if in_epoch[j+1] != in_epoch[j]:
-            #     proj = matrix(zeros((len(V), len(V))))
-            #     #add projection from epoch j to j+1
-            #     for a, b in mappings[in_epoch[j]]:
-            #         proj[a, b] = 1.0
-            # else:
-            #     proj = matrix(identity(len(V)))
-            # proj = arange(len(V))
-            # if j > 0 and in_epoch[j] != in_epoch[j-1]:
-            #     for a, b in mappings[in_epoch[j-1]]:
-            #         proj[a] = b
-            #     print "mapping", j, proj
-            # projections.append(proj)
+            if j > 1 and in_epoch[j-1] != in_epoch[j]:
+                V, E = G.originalGraph(in_epoch[j-1])
+                proj = arange(len(V))
+                for a, b in mappings[in_epoch[j-1]]:
+                    proj[a] = b
+                print "mapping", j, proj
+                print "from size", epoch_sizes[in_epoch[j-1]], "to", epoch_sizes[in_epoch[j]]
+            else:
+                V, E = G.originalGraph(in_epoch[j])
+                proj = arange(len(V))
+            projections.append(proj)
+        print projections
+        print [x.shape for x in P]
+        print [x.shape for x in Qs]
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
-        def joint_prob(lenV, G, path):
+        def joint_prob(sizes, G, path):
             # An extra state is added, as all paths should start in state 0,
             # meaning all species are seperate.
             all_seperate = 0
-            component_path = [[all_seperate]] + [G.all_states(p) for p in path]
+            component_path = [[all_seperate]] + [G.all_states(e, p) for (e,p) in path]
+            print path
+            lenV = sizes[0]
             pi_prev = zeros(lenV)
             pi_prev[all_seperate] = 1.0
-            for i in xrange(len(path)):
+            for i in xrange(len(component_path)):
+                epoch = path[i][0]
+                lenV = sizes[epoch]
                 P_i = P[i]
                 #TODO: matrices are not aligned?
                 #pi_prev = projections[i] * pi_prev
-                #proj = projections[i]
+                proj = projections[i]
                 pi_curr = zeros(lenV)
                 #print pi_prev, sum(pi_prev)
                 #print i, in_epoch[i], proj
                 for s in component_path[i+1]:
                     for x in component_path[i]:
-                        #print s, x, P_i[proj[x], s] * pi_prev[x]
+                        print "asdasd", i, s, x, P_i.shape, P_i[proj[x], s] * pi_prev[x]
                         pi_curr[s] += P_i[x, s] * pi_prev[x]
                 pi_prev = pi_curr
             return sum(pi_curr)
@@ -148,7 +160,7 @@ class Model:
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
         for p in self.paths_final:
-            joint = joint_prob(len(V), G, p)
+            joint = joint_prob(epoch_sizes, G, p)
             total_joint += joint
             a = tmap[make_tree(G, p, 0)]
             b = tmap[make_tree(G, p, 1)]

@@ -6,19 +6,21 @@ def make_tree(G, s, side):
         with the timestamp and an iset of children.
     """
     tree = None
-    initial = G.project_state(G.initial(), side)
+    initial = G.project_state(0, G.initial(0), side)
     used = set()
     for i in xrange(len(s)):
+        ce, cs = s[i]
+        pe, ps = s[i-1]
         if i == 0:
-            B = G.projected(s[i], side)
+            B = G.projected(ce, cs, side)
             if len(initial) != len(B):
                 joined_from_the_start = initial - B
                 tree = (0, joined_from_the_start)
                 for x in joined_from_the_start:
                     used.add(x)
-        elif s[i] != s[i-1]:
-            A = G.projected(s[i-1], side)
-            B = G.projected(s[i], side)
+        elif cs != ps:
+            A = G.projected(pe, ps, side)
+            B = G.projected(ce, cs, side)
             A = iset([x for x in A if len(x) == 1])
             joined = A-B
             if len(joined) == 0:
