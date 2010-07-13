@@ -34,7 +34,7 @@ def _emission_row(tree, cols, times, theta):
     # calculation. There is a special case at the end where the time goes to
     # infinity, where we return theta.
     def m(i):
-        if i + 1 == len(times):
+        if i + 1 >= len(times):
             dt = 0.0
             a = 0.0
         else:

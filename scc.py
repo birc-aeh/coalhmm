@@ -99,7 +99,7 @@ class EpochSeperatedSCCGraph:
         return self.G[epoch].originalGraph()
 
     def add_component_edge(self, e1, s1, e2, s2):
-        assert isinstance(s1, iset) and isinstance(s2, iset) and s1 != s2
+        #assert isinstance(s1, iset) and isinstance(s2, iset) and s1 != s2
         assert e1 != e2
         res = self.G[e1].original_states[s1], self.G[e2].original_states[s2]
         c1, c2 = self.G[e1].find_component(s1), self.G[e2].find_component(s2)
@@ -137,7 +137,7 @@ class EpochSeperatedSCCGraph:
                 else:
                     fun(nS)
             return f
-        self.G[0].all_paths(with_prefix([]), 0, 0)
+        self.G[0].all_paths(with_prefix([]))
 
 class SCCGraph:
     def all_paths(self, fun, start=None, epoch=0):

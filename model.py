@@ -3,21 +3,18 @@ from scipy.linalg import expm
 from sets import ImmutableSet as iset
 
 from intervals import *
-from statespace_generator import BasicCoalSystem
+from statespace_generator import BasicCoalSystem, SeperatedPopulationCoalSystem
 from scc import SCCGraph, EpochSeperatedSCCGraph
 from tree import *
 from emission_matrix import *
-from time_plot import *
 
 def prettify_state(s):
     """Convert a coal system state to something nicer.
     
     example:
-      iset([(iset([3]), iset([3])),
-            (iset([1]), iset([1])),
-            (iset([2]), iset([2]))])
-    to:
-      {3, 1, 2}, {3, 1, 2}
+>>> from sets import ImmutableSet as iset
+>>> prettify_state(iset([(iset([3]), iset([3])),  (iset([1]), iset([1])),  (iset([2]), iset([2]))]))
+'{1, 2, 3}, {1, 2, 3}'
     """
     def f(s, side, d):
         if d == 0:
@@ -29,9 +26,9 @@ def prettify_state(s):
 
 
 class Model:
-    def __init__(self, nleaves, nintervals, G=None):
+    def __init__(self, nleaves, nbreakpoints, G=None, mappings=[]):
         self.nleaves = nleaves
-        self.nintervals = nintervals
+        self.nbreakpoints = nbreakpoints
         if G == None:
             # Build transition system
             x = BasicCoalSystem(range(nleaves))
@@ -50,16 +47,24 @@ class Model:
         # Build all distributions of the paths over our intervals
         paths_final = []
         tree_map = {}
-        for s in enumerate_all_transitions(paths, nintervals):
+        # We assume one less breakpoint in the first epoch, because we later
+        #  have to add a state where everything is seperated.
+        nbreakpoints[0] = nbreakpoints[0] - 1
+        for s in enumerate_all_transitions(paths, nbreakpoints):
             paths_final.append(s)
             ta = make_tree(G, s, 0)
+            tb = make_tree(G, s, 1)
             if ta not in tree_map:
                 tree_map[ta] = len(tree_map)
+            if tb not in tree_map:
+                tree_map[tb] = len(tree_map)
+        nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
         self.paths_final = paths_final
+        self.mappings = mappings
 
-    def run(self, R, C, epoch_bps=None, mappings=[]):
+    def run(self, R, C, epoch_bps):
         """Generates the parts needed for the HMM.
         Inititial state probabilities,
         Transition matrix, and
@@ -67,14 +72,13 @@ class Model:
         Additionally returns the rate matrix used.
         """
         theta = 1 / C
-        if epoch_bps == None:
-            # TODO: choose better breakpoints?
-            epoch_bps = [[0.0] + [c * theta for c in [.5,1,2,3,4]]]
-
         epoch_sizes = self.G.getEpochSizes()
         nepochs = len(epoch_sizes)
-        assert sum(map(len,epoch_bps)) == self.nintervals + 1, \
-                "We need n+1 breakpoints, for n intervals"
+        mappings = self.mappings
+        assert len(epoch_bps) == nepochs, \
+                "We need breakpoints for every epoch"
+        assert map(len,epoch_bps) == self.nbreakpoints, \
+                "Wrong number of breakpoints"
         assert len(mappings) == nepochs - 1, \
                 "We need n-1 mappings for n epochs"
 
@@ -106,27 +110,24 @@ class Model:
             Q = genRateMatrix(len(V), E, C=C, R=R)
             epochQ.append(Q)
             nbps = len(epoch_bps[e])
-            Qs = Qs + [Q] * nbps
+            Qs = Qs + [Q] * (nbps)
             in_epoch = in_epoch + [e] * nbps
 
         projections = []
         for j in xrange(len(breakpoints)-1):
             dt = breakpoints[j+1] - breakpoints[j]
-            P.append(expm(Qs[j]*dt))
-            if j > 1 and in_epoch[j-1] != in_epoch[j]:
-                V, E = G.originalGraph(in_epoch[j-1])
+            P.append(expm(Qs[j+1]*dt))
+            if in_epoch[j+1] != in_epoch[j]:
+                V, E = G.originalGraph(in_epoch[j])
                 proj = arange(len(V))
-                for a, b in mappings[in_epoch[j-1]]:
+                for a, b in mappings[in_epoch[j]]:
                     proj[a] = b
-                print "mapping", j, proj
-                print "from size", epoch_sizes[in_epoch[j-1]], "to", epoch_sizes[in_epoch[j]]
             else:
                 V, E = G.originalGraph(in_epoch[j])
                 proj = arange(len(V))
             projections.append(proj)
-        print projections
-        print [x.shape for x in P]
-        print [x.shape for x in Qs]
+        assert len(P) == len(breakpoints) - 1
+        assert len(Qs) >= len(breakpoints) - 1
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
@@ -135,24 +136,20 @@ class Model:
             # meaning all species are seperate.
             all_seperate = 0
             component_path = [[all_seperate]] + [G.all_states(e, p) for (e,p) in path]
-            print path
+            in_epoch = [0] + [e for (e,p) in path]
             lenV = sizes[0]
             pi_prev = zeros(lenV)
             pi_prev[all_seperate] = 1.0
-            for i in xrange(len(component_path)):
-                epoch = path[i][0]
-                lenV = sizes[epoch]
+            for i in xrange(len(component_path)-1):
                 P_i = P[i]
-                #TODO: matrices are not aligned?
-                #pi_prev = projections[i] * pi_prev
                 proj = projections[i]
-                pi_curr = zeros(lenV)
-                #print pi_prev, sum(pi_prev)
-                #print i, in_epoch[i], proj
+                pi_curr = zeros(sizes[in_epoch[i+1]])
                 for s in component_path[i+1]:
                     for x in component_path[i]:
-                        print "asdasd", i, s, x, P_i.shape, P_i[proj[x], s] * pi_prev[x]
-                        pi_curr[s] += P_i[x, s] * pi_prev[x]
+                        prev_val = pi_prev[x]
+                        projected_x = proj[x]
+                        P_val = P_i[projected_x, s]
+                        pi_curr[s] += P_val * prev_val
                 pi_prev = pi_curr
             return sum(pi_curr)
 
@@ -162,25 +159,78 @@ class Model:
         for p in self.paths_final:
             joint = joint_prob(epoch_sizes, G, p)
             total_joint += joint
-            a = tmap[make_tree(G, p, 0)]
-            b = tmap[make_tree(G, p, 1)]
-            J[a, b] = joint
+            t1 = make_tree(G, p, 0)
+            t2 = make_tree(G, p, 1)
+            a = tmap[t1]
+            b = tmap[t2]
+            J[a, b] += joint
+
+        tmap_rev = dict((v,k) for k,v in tmap.iteritems())
         # TODO: reasonable epsilon?
         assert abs(total_joint - 1.0) < 0.0001
-
-        # The starting probabilities is equal to the row-sums of J
+        # The starting probabilities are equal to the row-sums of J
         pi = sum(J, axis=0)
         # The transitions have to be normalized
         T = J/pi
-        return pi, T, Em, Q[0] #TODO: don't return Q?
+        return pi, T, Em
 
-    def write_dot(self, filename):
-        f = file(filename, "w")
-        f.write("digraph {\n")
-        for a in xrange(len(self.G.E)):
-            f.write('%i [label="%s"]\n' % (a, prettify_state(self.G.state(a))))
-            for b in self.G.E[a]:
-                f.write("%i -> %i\n" % (a, b))
-        f.write("}\n")
-        f.close()
+def build_epoch_seperated_scc(nleaves, mappings):
+    '''Takes in a number of species, and a series of projections to build a
+    SCC graph, seperated in to epochs.
+    The projections (or mappings) consists of arrays - each species is given
+    a number from 0 to nleaves-1, and looks in a projection at that index to
+    find the new index.
+    Merging species 0 and 1 out of three would be [0,0,1].
+    
+>>> proj, g = build_epoch_seperated_scc(3, [[0, 0, 0]])
+>>> g.getEpochSizes()
+[8, 203]
+    '''
+    statespace = SeperatedPopulationCoalSystem(range(nleaves))
+    states, edges = statespace.compute_state_space()
+    SCCs = [SCCGraph(states, edges, 0)]
+    epoch = 1
+    for mapping in mappings:
+        init = [iset([(mapping[p], tok) for (p, tok) in x]) for x in states]
+        statespace = SeperatedPopulationCoalSystem(range(nleaves), init)
+        states, edges = statespace.compute_state_space()
+        G = SCCGraph(states, edges, epoch)
+        epoch += 1
+        G.add_transitive_edges()
+        SCCs.append(G)
 
+    G = EpochSeperatedSCCGraph()
+    G.addSubGraph(SCCs[0])
+    projections = []
+    for i, new in enumerate(SCCs[1:]):
+        G.addSubGraph(new)
+        old = SCCs[i] # note: i starts at 0, so 'new' is at i+1
+        tmp_proj = []
+        for c in xrange(len(old.V)):
+            for v in old.all_states(c):
+                old_state = old.states_rev[v]
+                new_state = iset([(mappings[i][p], tok) for (p, tok) in old_state])
+                m = G.add_component_edge(i, old_state, i+1,new_state)
+                tmp_proj.append(m)
+        projections.append(tmp_proj)
+    return projections, G
+
+def build_simple_model(nleaves, bps):
+    '''Creates a model using the simple statespace, where all leaves are
+    considered as part of the same population.
+    
+>>> m = build_simple_model(2, 3)'''
+    return Model(nleaves, [bps])
+
+def build_epoch_seperated_model(nleaves, mappings, epoch_nbps):
+    '''Creates a model seperated in to epochs.
+    
+>>> m = build_epoch_seperated_model(2, [], [3])
+>>> m = build_epoch_seperated_model(2, [[0,0]], [2,3])'''
+    assert len(mappings) == len(epoch_nbps) - 1
+    mappings, G = build_epoch_seperated_scc(nleaves, mappings)
+    return Model(nleaves, epoch_nbps, G, mappings)
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

@@ -189,71 +189,7 @@ class SeperatedPopulationCoalSystem(CoalSystem):
         else:
             self.init = initial_states
 
-def prettify_state(s):
-    def f(s, side, d):
-        if d == 0:
-            tmp = [f(sub, side, d+1) for sub in s if len(s) > 0]
-            return ", ".join(sorted([x for x in tmp if x.strip() != ""]))
-        elif d == 1:
-            tmp = f(s[1], side, d+1)
-            if tmp != "":
-                return tmp+(" (s%i)"%s[0])
-            return ""
-            #return "- (%i)"%s[0]
-        elif d == 2:
-            return "".join(sorted([str(x) for x in s[side] if len(s[side]) > 0]))
-    return "{" + f(s, 0, 0) + "}, {" + f(s, 1, 0) + "}"
-
 if __name__ == "__main__":
-    from scc import *
-    nleaves = 2
-    system = SeperatedPopulationCoalSystem(range(nleaves))
-    states, edges = system.compute_state_space()
-    mappings = [[0, 0, 1]]#, [0, 0]]
-    SCCs = [SCCGraph(states, edges, 0)]
-    epoch = 1
-    for mapping in mappings:
-        init = [iset([(mapping[p], tok) for (p, tok) in x]) for x in states]
-        system = SeperatedPopulationCoalSystem(range(nleaves), init)
-        states, edges = system.compute_state_space()
-        G = SCCGraph(states, edges, epoch)
-        epoch += 1
-        G.add_transitive_edges()
-        SCCs.append(G)
-
-    G = EpochSeperatedSCCGraph()
-    G.addSubGraph(SCCs[0])
-    projections = []
-    for i, new in enumerate(SCCs[1:]):
-        #print "new SCC, mapping: ", mappings[i]
-        G.addSubGraph(new)
-        old = SCCs[i] # note: i starts at 0, so 'new' is at i+1
-        tmp_proj = []
-        for c in xrange(len(old.V)):
-            for v in old.all_states(c):
-                old_state = old.states_rev[v]
-                new_state = iset([(mappings[i][p], tok) for (p, tok) in old_state])
-                #print prettify_state(old_state), "-->"
-                #print prettify_state(new_state)
-                #print ""
-                m = G.add_component_edge(i, old_state, i+1,new_state)
-                tmp_proj.append(m)
-        projections.append(tmp_proj)
-    print projections
-    print G.E
-    def p(s):
-        print s
-    G.all_paths(p)
-    from model import Model
-    m = Model(nleaves, 5, G)
-    theta = 2*30000.0 * 25 * 1e-9
-    C = 1.0 / theta
-    R = 1.5e-8 / 1.0e-9
-    interval_times = [[0.0] + [c*theta for c in [.5,1,2]], [c*theta for c in [3,4]]]
-    pi, T, E, Q = m.run(R, C, interval_times, projections)
-    print pi, sum(pi)
-    print T
-    #print E
 
 
 
