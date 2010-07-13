@@ -71,7 +71,6 @@ class Model:
         Emmision matrix.
         Additionally returns the rate matrix used.
         """
-        theta = 1 / C
         epoch_sizes = self.G.getEpochSizes()
         nepochs = len(epoch_sizes)
         mappings = self.mappings
@@ -81,6 +80,14 @@ class Model:
                 "Wrong number of breakpoints"
         assert len(mappings) == nepochs - 1, \
                 "We need n-1 mappings for n epochs"
+        if not isinstance(R, list):
+            assert not isinstance(C, list)
+            R = [R] * nepochs
+            C = [C] * nepochs
+        assert isinstance(R, list) and isinstance(C, list)
+        assert len(R) == len(C) == nepochs
+        # TODO: transition can use R/C in different epochs, emission can't
+        theta = 1 / (sum(C)/len(C))
 
         tmap = self.tree_map
         G = self.G
@@ -107,7 +114,7 @@ class Model:
         in_epoch = []
         for e in xrange(len(epoch_bps)):
             V, E = G.originalGraph(e)
-            Q = genRateMatrix(len(V), E, C=C, R=R)
+            Q = genRateMatrix(len(V), E, C=C[e], R=R[e])
             epochQ.append(Q)
             nbps = len(epoch_bps[e])
             Qs = Qs + [Q] * (nbps)
@@ -127,7 +134,7 @@ class Model:
                 proj = arange(len(V))
             projections.append(proj)
         assert len(P) == len(breakpoints) - 1
-        assert len(Qs) >= len(breakpoints) - 1
+        assert len(Qs) == len(breakpoints)
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
@@ -146,10 +153,7 @@ class Model:
                 pi_curr = zeros(sizes[in_epoch[i+1]])
                 for s in component_path[i+1]:
                     for x in component_path[i]:
-                        prev_val = pi_prev[x]
-                        projected_x = proj[x]
-                        P_val = P_i[projected_x, s]
-                        pi_curr[s] += P_val * prev_val
+                        pi_curr[s] += P_i[proj[x], s] * pi_prev[x]
                 pi_prev = pi_curr
             return sum(pi_curr)
 
@@ -165,7 +169,6 @@ class Model:
             b = tmap[t2]
             J[a, b] += joint
 
-        tmap_rev = dict((v,k) for k,v in tmap.iteritems())
         # TODO: reasonable epsilon?
         assert abs(total_joint - 1.0) < 0.0001
         # The starting probabilities are equal to the row-sums of J

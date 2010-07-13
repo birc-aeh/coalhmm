@@ -190,6 +190,5 @@ class SeperatedPopulationCoalSystem(CoalSystem):
             self.init = initial_states
 
 if __name__ == "__main__":
-
-
+    pass
 
