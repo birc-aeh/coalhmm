@@ -48,7 +48,7 @@ def _emission_row(tree, cols, times, theta):
     # For each subtree in a node, a double sum is needed:
     #  for each symbol, y, in our result:
     #    for each symbol, x, we could be coming from:
-    #      add the prob of the child being in x, time the prob of going from
+    #      add the prob of the child being in x, times the prob of going from
     #      x to y in the time that has passed
     # At the end the node takes the product of the results for each child.
     def visit(t):

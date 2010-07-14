@@ -55,36 +55,6 @@ def _build_scc(states, edges):
     return V, E, containing_c
 
 class EpochSeperatedSCCGraph:
-    def merge(Ga, Gb):
-        # All states in Ga and Gb are added, with a new number.
-        # Ga receives the same numbers, while Gb states add len(Ga's states)
-        offset = len(Ga.original_states)
-        new_states = dict(Ga.original_states)
-        new_states_rev = dict(Ga.states_rev)
-        for k, v in Gb.original_states.iteritems():
-            new_states[k] = v + offset
-            new_states_rev[v + offset] = k
-        new_edges = Ga.original_edges[:]
-        for (a,t,b) in Gb.original_edges:
-            new_edges.append((a+offset, t, b+offset))
-        new_V = Ga.V[:]
-        for c in Gb.V:
-            new_V.append([x+offset for x in c])
-        offset = len(Ga.V) # now we are using component offsets
-        new_E = Ga.E[:]
-        for edges in Gb.E:
-            new_E.append(set([e+offset for e in edges]))
-        new_cc = Ga.containing_c + [x + offset for x in Gb.containing_c]
-
-        new_G = SCCGraph(None, None)
-        new_G.original_states = new_states
-        new_G.original_edges = new_edges
-        new_G.states_rev = new_states_rev
-        new_G.V = [sorted(x) for x in new_V]
-        new_G.E = new_E
-        new_G.containing_c = new_cc
-        return new_G
-
     def __init__(self):
         self.G = []
         self.E = {}
@@ -99,7 +69,6 @@ class EpochSeperatedSCCGraph:
         return self.G[epoch].originalGraph()
 
     def add_component_edge(self, e1, s1, e2, s2):
-        #assert isinstance(s1, iset) and isinstance(s2, iset) and s1 != s2
         assert e1 != e2
         res = self.G[e1].original_states[s1], self.G[e2].original_states[s2]
         c1, c2 = self.G[e1].find_component(s1), self.G[e2].find_component(s2)
@@ -193,7 +162,7 @@ class SCCGraph:
         return self.states_rev[0]
     def all_states(self, v):
         """Returns all the states in a component"""
-        return [x for x in self.V[v]]
+        return tuple(x for x in self.V[v])
     def state(self, v):
         """Returns a representative state for a component"""
         return self.states_rev[self.V[v][0]]

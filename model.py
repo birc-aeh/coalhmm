@@ -108,18 +108,17 @@ class Model:
                 M[i,i] = -sum(row)
             return M
 
-        P = []
-        epochQ = []
         Qs = []
         in_epoch = []
         for e in xrange(len(epoch_bps)):
             V, E = G.originalGraph(e)
             Q = genRateMatrix(len(V), E, C=C[e], R=R[e])
-            epochQ.append(Q)
             nbps = len(epoch_bps[e])
             Qs = Qs + [Q] * (nbps)
             in_epoch = in_epoch + [e] * nbps
+        assert len(Qs) == len(breakpoints)
 
+        P = []
         projections = []
         for j in xrange(len(breakpoints)-1):
             dt = breakpoints[j+1] - breakpoints[j]
@@ -134,7 +133,6 @@ class Model:
                 proj = arange(len(V))
             projections.append(proj)
         assert len(P) == len(breakpoints) - 1
-        assert len(Qs) == len(breakpoints)
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
@@ -157,11 +155,36 @@ class Model:
                 pi_prev = pi_curr
             return sum(pi_curr)
 
+        joint_prob_cache = {}
+        def joint_prob_cached(sizes, G, path):
+            all_seperate = 0
+            component_path = ((all_seperate,),) + tuple(G.all_states(e, p) for (e,p) in path)
+            in_epoch = [0] + [e for (e,p) in path]
+            lenV = sizes[0]
+            pi_init = zeros(lenV)
+            pi_init[all_seperate] = 1.0
+            def jp(i):
+                if i == 0:
+                    return pi_init
+                sub_path = component_path[:i+1]
+                if sub_path in joint_prob_cache:
+                    return joint_prob_cache[sub_path]
+                P_i = P[i-1]
+                proj = projections[i-1]
+                pi_prev = jp(i-1)
+                pi_curr = zeros(sizes[in_epoch[i]])
+                for s in component_path[i]:
+                    for x in component_path[i-1]:
+                        pi_curr[s] += P_i[proj[x], s] * pi_prev[x]
+                joint_prob_cache[sub_path] = pi_curr
+                return pi_curr
+            return sum(jp(len(component_path)-1))
+
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
         for p in self.paths_final:
-            joint = joint_prob(epoch_sizes, G, p)
+            joint = joint_prob_cached(epoch_sizes, G, p)
             total_joint += joint
             t1 = make_tree(G, p, 0)
             t2 = make_tree(G, p, 1)
@@ -227,7 +250,7 @@ def build_simple_model(nleaves, bps):
 
 def build_epoch_seperated_model(nleaves, mappings, epoch_nbps):
     '''Creates a model seperated in to epochs.
-    
+
 >>> m = build_epoch_seperated_model(2, [], [3])
 >>> m = build_epoch_seperated_model(2, [[0,0]], [2,3])'''
     assert len(mappings) == len(epoch_nbps) - 1

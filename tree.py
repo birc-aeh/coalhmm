@@ -7,7 +7,6 @@ def make_tree(G, s, side):
     """
     tree = None
     initial = G.project_state(0, G.initial(0), side)
-    #print initial
     used = set()
     for i in xrange(len(s)):
         ce, cs = s[i]
@@ -32,7 +31,6 @@ def make_tree(G, s, side):
                 tree = (i, joined)
             else:
                 tree = (i, iset([tree]).union(joined))
-    #print used, tree
     if len(initial) == len(used):
         return tree
     rest_joined_at = len(s)
