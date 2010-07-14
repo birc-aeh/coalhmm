@@ -1,6 +1,7 @@
 from scipy import *
 from scipy.linalg import expm
 from sets import ImmutableSet as iset
+from itertools import izip
 
 from intervals import *
 from statespace_generator import BasicCoalSystem, SeperatedPopulationCoalSystem
@@ -47,6 +48,7 @@ class Model:
         # Build all distributions of the paths over our intervals
         paths_final = []
         tree_map = {}
+        paths_indices = []
         # We assume one less breakpoint in the first epoch, because we later
         #  have to add a state where everything is seperated.
         nbreakpoints[0] = nbreakpoints[0] - 1
@@ -58,8 +60,10 @@ class Model:
                 tree_map[ta] = len(tree_map)
             if tb not in tree_map:
                 tree_map[tb] = len(tree_map)
+            paths_indices.append((tree_map[ta], tree_map[tb]))
         nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again
         self.tree_map = tree_map
+        self.paths_final_indices = paths_indices
         self.ntrees = len(tree_map)
         self.paths_final = paths_final
         self.mappings = mappings
@@ -183,13 +187,9 @@ class Model:
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
-        for p in self.paths_final:
+        for p, (a,b) in izip(self.paths_final, self.paths_final_indices):
             joint = joint_prob_cached(epoch_sizes, G, p)
             total_joint += joint
-            t1 = make_tree(G, p, 0)
-            t2 = make_tree(G, p, 1)
-            a = tmap[t1]
-            b = tmap[t2]
             J[a, b] += joint
 
         # TODO: reasonable epsilon?
