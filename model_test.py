@@ -1,4 +1,5 @@
 from model import build_epoch_seperated_model, build_simple_model
+from time import time
 
 theta = 2*30000.0 * 25 * 1e-9
 C = 1.0 / theta
@@ -16,10 +17,13 @@ def test(nleaves, mappings, nbps, simple=False):
     for n in nbps:
         epoch_bps.append([(offset + c)*0.5*theta for c in xrange(n)])
         offset += n
+    t0 = time()
     pi, T, E = m.run(R, C, epoch_bps)
     pi, T, E = m.run(R, C, epoch_bps)
     pi, T, E = m.run(R, C, epoch_bps)
-    print str((nleaves, mappings, nbps)).ljust(40), "=>",
+    t1 = time()
+    print "["+str(round(t1-t0, 2)).ljust(5)+"s]",
+    print str((nleaves, mappings, nbps)).ljust(34), "=>",
     return sum(pi), sum(sum(T)), T.shape
 
 # print test(2, [[0,0]], [1,3])

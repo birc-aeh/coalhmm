@@ -49,6 +49,11 @@ class Model:
         paths_final = []
         tree_map = {}
         paths_indices = []
+        path_prefix_numbers = {}
+        # For each path, p, paths_prefix_ids contains a list numbering the
+        # prefixes of p. So the paths aaa and aab might be [0,1,2] and [0,1,3].
+        # This is used later to do cache lookups without hasing a full path.
+        paths_prefix_ids = []
         # We assume one less breakpoint in the first epoch, because we later
         #  have to add a state where everything is seperated.
         nbreakpoints[0] = nbreakpoints[0] - 1
@@ -59,11 +64,19 @@ class Model:
             a = tree_map.setdefault(ta, len(tree_map))
             b = tree_map.setdefault(tb, len(tree_map))
             paths_indices.append((a, b))
+            ppn = path_prefix_numbers
+            prefixes = [ppn.setdefault(s[:i+1], len(ppn)) for i in xrange(len(s))]
+            paths_prefix_ids.append(prefixes)
         nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again
         self.tree_map = tree_map
-        self.paths_final_indices = paths_indices
         self.ntrees = len(tree_map)
-        self.paths_final = paths_final
+        # The paths are sorted by the prefix ids to give as much overlap as
+        # possible between to consecutive paths (so we can utilize the cache
+        # better)
+        indices = sorted(range(len(paths_final)), key=lambda i: paths_prefix_ids[i])
+        self.paths_final_indices = [paths_indices[i] for i in indices]
+        self.paths_final = [paths_final[i] for i in indices]
+        self.paths_prefix_ids = [paths_prefix_ids[i] for i in indices]
         self.mappings = mappings
 
     def run(self, R, C, epoch_bps):
@@ -165,13 +178,13 @@ class Model:
             return sum(pi_curr)
 
         joint_prob_cache = {}
-        def joint_prob_cached(sizes, path):
+        def joint_prob_cached(sizes, path, path_prefix_ids):
             def jp(i):
                 if i == 0:
                     res = zeros(sizes[0])
                     res[0] = 1.0
                     return res
-                sub_path = path[:i+1]
+                sub_path = path_prefix_ids[i-1]
                 if sub_path in joint_prob_cache:
                     return joint_prob_cache[sub_path]
                 P_i = P[i-1]
@@ -188,8 +201,11 @@ class Model:
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
-        for p, (a,b) in izip(self.paths_final, self.paths_final_indices):
-            joint = joint_prob_cached(all_sizes, p)
+        for p, pp, (a,b) in izip(
+                self.paths_final,
+                self.paths_prefix_ids,
+                self.paths_final_indices):
+            joint = joint_prob_cached(all_sizes, p, pp)
             total_joint += joint
             J[a, b] += joint
 

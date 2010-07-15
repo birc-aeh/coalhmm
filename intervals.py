@@ -39,7 +39,7 @@ def enumerate_all_transitions(SCCPaths, noTimePoints):
         else:
             for assignment in enumerate_all_path_distributions(path,noTimePoints):
                 states.add(assignment)
-    return states
+    return sorted(states)
 
 if __name__ == "__main__":
     path = [(0,1),(0,2),(1,0),(1,1)]
