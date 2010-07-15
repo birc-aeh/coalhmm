@@ -137,6 +137,8 @@ class SCCGraph:
         for (a,t,pop,b) in edges:
             edges2[a].append(b)
         self.V, self.E, self.containing_c = _build_scc(states, edges2)
+        self.projection_cache = {}
+        self.state_tuples = [tuple(self.V[v]) for v in xrange(len(self.V))]
 
     def originalGraph(self):
         return self.original_states, self.original_edges
@@ -162,13 +164,17 @@ class SCCGraph:
         return self.states_rev[0]
     def all_states(self, v):
         """Returns all the states in a component"""
-        return tuple(x for x in self.V[v])
+        return self.state_tuples[v]
     def state(self, v):
         """Returns a representative state for a component"""
         return self.states_rev[self.V[v][0]]
     def project_state(self, s, side):
         """Extracts either the left or right side from a state"""
-        return iset([x[1][side] for x in s if x[1][side] != iset()])
+        if (s, side) not in self.projection_cache:
+            res = iset([x[1][side] for x in s if x[1][side] != iset()])
+            self.projection_cache[(s,side)] = res
+            return res
+        return self.projection_cache[(s,side)]
     def projected(self, v, side):
         """Extracts either the left or right side from a representative of the
         component"""

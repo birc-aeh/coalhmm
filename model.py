@@ -53,14 +53,12 @@ class Model:
         #  have to add a state where everything is seperated.
         nbreakpoints[0] = nbreakpoints[0] - 1
         for s in enumerate_all_transitions(paths, nbreakpoints):
-            paths_final.append(s)
+            paths_final.append(((0,),)+tuple(G.all_states(e,p) for e,p in s))
             ta = make_tree(G, s, 0)
             tb = make_tree(G, s, 1)
-            if ta not in tree_map:
-                tree_map[ta] = len(tree_map)
-            if tb not in tree_map:
-                tree_map[tb] = len(tree_map)
-            paths_indices.append((tree_map[ta], tree_map[tb]))
+            a = tree_map.setdefault(ta, len(tree_map))
+            b = tree_map.setdefault(tb, len(tree_map))
+            paths_indices.append((a, b))
         nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again
         self.tree_map = tree_map
         self.paths_final_indices = paths_indices
@@ -123,12 +121,14 @@ class Model:
 
         Qs = []
         in_epoch = []
+        all_sizes = []
         for e in xrange(len(epoch_bps)):
             V, E = G.originalGraph(e)
             Q = genRateMatrix(len(V), E, C=C[e], R=R[e])
             nbps = len(epoch_bps[e])
             Qs = Qs + [Q] * (nbps)
             in_epoch = in_epoch + [e] * nbps
+            all_sizes = all_sizes + [epoch_sizes[e]] * nbps
         assert len(Qs) == len(breakpoints)
 
         P = []
@@ -149,55 +149,47 @@ class Model:
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
-        def joint_prob(sizes, G, path):
+        def joint_prob(sizes, path):
             # An extra state is added, as all paths should start in state 0,
             # meaning all species are seperate.
-            all_seperate = 0
-            component_path = [[all_seperate]] + [G.all_states(e, p) for (e,p) in path]
-            in_epoch = [0] + [e for (e,p) in path]
-            lenV = sizes[0]
-            pi_prev = zeros(lenV)
-            pi_prev[all_seperate] = 1.0
-            for i in xrange(len(component_path)-1):
+            pi_prev = zeros(sizes[0])
+            pi_prev[0] = 1.0
+            for i in xrange(len(path)-1):
                 P_i = P[i]
                 proj = projections[i]
-                pi_curr = zeros(sizes[in_epoch[i+1]])
-                for s in component_path[i+1]:
-                    for x in component_path[i]:
+                pi_curr = zeros(sizes[i+1])
+                for s in path[i+1]:
+                    for x in path[i]:
                         pi_curr[s] += P_i[proj[x], s] * pi_prev[x]
                 pi_prev = pi_curr
             return sum(pi_curr)
 
         joint_prob_cache = {}
-        def joint_prob_cached(sizes, G, path):
-            all_seperate = 0
-            component_path = ((all_seperate,),) + tuple(G.all_states(e, p) for (e,p) in path)
-            in_epoch = [0] + [e for (e,p) in path]
-            lenV = sizes[0]
-            pi_init = zeros(lenV)
-            pi_init[all_seperate] = 1.0
+        def joint_prob_cached(sizes, path):
             def jp(i):
                 if i == 0:
-                    return pi_init
-                sub_path = component_path[:i+1]
+                    res = zeros(sizes[0])
+                    res[0] = 1.0
+                    return res
+                sub_path = path[:i+1]
                 if sub_path in joint_prob_cache:
                     return joint_prob_cache[sub_path]
                 P_i = P[i-1]
                 proj = projections[i-1]
                 pi_prev = jp(i-1)
-                pi_curr = zeros(sizes[in_epoch[i]])
-                for s in component_path[i]:
-                    for x in component_path[i-1]:
+                pi_curr = zeros(sizes[i])
+                for s in path[i]:
+                    for x in path[i-1]:
                         pi_curr[s] += P_i[proj[x], s] * pi_prev[x]
                 joint_prob_cache[sub_path] = pi_curr
                 return pi_curr
-            return sum(jp(len(component_path)-1))
+            return sum(jp(len(path)-1))
 
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
         for p, (a,b) in izip(self.paths_final, self.paths_final_indices):
-            joint = joint_prob_cached(epoch_sizes, G, p)
+            joint = joint_prob_cached(all_sizes, p)
             total_joint += joint
             J[a, b] += joint
 
