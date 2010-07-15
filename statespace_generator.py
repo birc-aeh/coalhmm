@@ -58,11 +58,11 @@ class CoalSystem(object):
         ttype,tfunc = self.transitions[0][0]
         for token in L:
             pre = iset([token])
-            tproduct = tfunc(token)
+            pop, tproduct = tfunc(token)
             if tproduct:
                 post = tproduct
                 new_state = state.difference(pre).union(post)
-                yield ttype, new_state
+                yield ttype, pop, new_state
 
         ttype,tfunc = self.transitions[1][0]
         for i in xrange(len(L)):
@@ -72,12 +72,12 @@ class CoalSystem(object):
                 
                 pre = iset([t1,t2])
 
-                tproduct = tfunc(t1,t2)
+                pop, tproduct = tfunc(t1,t2)
                 post = tproduct
                 if post == None:
                     continue
                 new_state = state.difference(pre).union(post)
-                yield ttype, new_state
+                yield ttype, pop, new_state
 
 
     def compute_state_space(self):
@@ -94,7 +94,7 @@ class CoalSystem(object):
         while unprocessed:
             s = unprocessed.pop()
             n = self.state_numbers[s]
-            for t,ss in self.successors(s):
+            for t,pop,ss in self.successors(s):
                 assert s != ss, "We don't like self-loops!"
 
                 if ss not in self.state_numbers:
@@ -106,7 +106,7 @@ class CoalSystem(object):
                     seen.add(ss)
 
                 m = self.state_numbers[ss]
-                edges.append((n,t,m))
+                edges.append((n,t,pop,m))
 
         return self.state_numbers, edges
 
@@ -123,8 +123,8 @@ class BasicCoalSystem(CoalSystem):
         '''
         _, nucs = token
         left, right = nucs
-        if not (left and right): return None
-        return iset([(0,(left,iset())), (0, (iset(),right))])
+        if not (left and right): return 0, None
+        return 0, iset([(0,(left,iset())), (0, (iset(),right))])
 
     def coalesce(self, token1, token2):
         '''Construct a new token by coalescening "token1" and "token2".'''
@@ -133,7 +133,7 @@ class BasicCoalSystem(CoalSystem):
         left1, right1 = nuc1
         left2, right2 = nuc2
         left, right = left1.union(left2), right1.union(right2)
-        return iset([(0, (left, right))])
+        return 0, iset([(0, (left, right))])
 
     def initial_state(self):
         '''Build the initial state for this system.
@@ -157,20 +157,20 @@ class SeperatedPopulationCoalSystem(CoalSystem):
         '''
         pop, nucs = token
         left, right = nucs
-        if not (left and right): return None # abort transition...
-        return iset([(pop,(left,iset())),
-                     (pop,(iset(),right))])
+        if not (left and right): return pop, None # abort transition...
+        return pop, iset([(pop,(left,iset())),
+                          (pop,(iset(),right))])
 
     def coalesce(self, token1, token2):
         '''Construct a new token by coalescening "token1" and "token2".'''
         pop1, nuc1 = token1
         pop2, nuc2 = token2
-        if pop1 != pop2: return None # abort transition...
+        if pop1 != pop2: return -1, None # abort transition...
 
         left1, right1 = nuc1
         left2, right2 = nuc2
         left, right = left1.union(left2), right1.union(right2)
-        return iset([(pop1,(left, right))])
+        return pop1, iset([(pop1,(left, right))])
 
     def initial_state(self):
         '''Build the initial state for this system.

@@ -78,6 +78,7 @@ class Model:
         epoch_sizes = self.G.getEpochSizes()
         nepochs = len(epoch_sizes)
         mappings = self.mappings
+        nleaves = self.nleaves
         assert len(epoch_bps) == nepochs, \
                 "We need breakpoints for every epoch"
         assert map(len,epoch_bps) == self.nbreakpoints, \
@@ -90,8 +91,16 @@ class Model:
             C = [C] * nepochs
         assert isinstance(R, list) and isinstance(C, list)
         assert len(R) == len(C) == nepochs
+        if not isinstance(R[0], list):
+            assert not isinstance(C[0], list)
+            R = [[r]*nleaves for r in R]
+            C = [[c]*nleaves for c in C]
+        else:
+            assert map(len, R) == map(len, C)
         # TODO: transition can use R/C in different epochs, emission can't
-        theta = 1 / (sum(C)/len(C))
+        def avg(L):
+            return sum(L)/len(L)
+        theta = 1 / avg([avg(l) for l in C])
 
         tmap = self.tree_map
         G = self.G
@@ -105,8 +114,8 @@ class Model:
             def f(t):
                 return mapping[t]
             M = asmatrix(zeros((n_states, n_states)))
-            for (a,t,b) in edges:
-                M[a,b] = f(t)
+            for (a,t,pop,b) in edges:
+                M[a,b] = f(t)[pop]
             for i in xrange(n_states):
                 row = M[i, :]
                 M[i,i] = -sum(row)

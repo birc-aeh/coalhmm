@@ -21,7 +21,7 @@ def test(nleaves, mappings, nbps, simple=False):
     return sum(pi), sum(sum(T)), T.shape
 
 print test(2, [[0,0]], [1,3])
-print test(2, [[0,0]], [4], True)
+print test(2, [], [4], True)
 print test(3, [[0,0,0]], [1,3])
 print test(3, [], [4], True)
 print test(2, [], [3])

@@ -134,7 +134,7 @@ class SCCGraph:
             self.states_rev[v] = k
 
         edges2 = [[] for i in xrange(len(states))]
-        for (a,t,b) in edges:
+        for (a,t,pop,b) in edges:
             edges2[a].append(b)
         self.V, self.E, self.containing_c = _build_scc(states, edges2)
 
