@@ -1,6 +1,5 @@
 from scipy import *
 from scipy.linalg import expm
-from sets import ImmutableSet as iset
 
 #from time_plot import *
 from model import build_epoch_seperated_model, build_simple_model

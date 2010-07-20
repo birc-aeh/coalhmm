@@ -1,4 +1,4 @@
-from sets import ImmutableSet as iset
+iset = frozenset
 
 # A standard implementation of Tarjans algorithm.
 # The class is just to keep track of some state instead of having a lot of

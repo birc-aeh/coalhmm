@@ -1,4 +1,4 @@
-from sets import ImmutableSet as iset
+iset = frozenset
 
 def make_tree(G, s, side):
     """ Given a path, s, through the graph, G, create a tree with timestamps.

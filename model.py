@@ -1,6 +1,6 @@
 from scipy import *
 from scipy.linalg import expm
-from sets import ImmutableSet as iset
+iset = frozenset
 from itertools import izip
 
 from intervals import *
@@ -13,7 +13,7 @@ def prettify_state(s):
     """Convert a coal system state to something nicer.
     
     example:
->>> from sets import ImmutableSet as iset
+>>> iset = frozenset
 >>> prettify_state(iset([(iset([3]), iset([3])),  (iset([1]), iset([1])),  (iset([2]), iset([2]))]))
 '{1, 2, 3}, {1, 2, 3}'
     """

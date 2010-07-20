@@ -1,5 +1,5 @@
 from scipy import *
-from sets import ImmutableSet as iset
+iset = frozenset
 
 def _only(s):
     """At the leaves of a tree, there is always isets of size one.

@@ -1,5 +1,4 @@
-
-from sets import ImmutableSet as iset
+iset = frozenset
 
 class CoalSystem(object):
     '''Abstract class for the two nucleotide coalescence system.
