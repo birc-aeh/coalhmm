@@ -76,7 +76,7 @@ class Model:
         indices = sorted(range(len(paths_final)), key=lambda i: paths_prefix_ids[i])
         self.paths_final_indices = [paths_indices[i] for i in indices]
         self.paths_final = [paths_final[i] for i in indices]
-        self.paths_prefix_ids = [paths_prefix_ids[i] for i in indices]
+        self.paths_prefix_ids = [array(paths_prefix_ids[i]) for i in indices]
         self.mappings = mappings
 
     def run(self, R, C, epoch_bps):
@@ -149,14 +149,12 @@ class Model:
         for j in xrange(len(breakpoints)-1):
             dt = breakpoints[j+1] - breakpoints[j]
             P.append(expm(Qs[j+1]*dt))
-            if in_epoch[j+1] != in_epoch[j]:
-                V, E = G.originalGraph(in_epoch[j])
-                proj = arange(len(V))
-                for a, b in mappings[in_epoch[j]]:
+            e = in_epoch[j]
+            V, E = G.originalGraph(e)
+            proj = arange(len(V))
+            if in_epoch[j+1] != e:
+                for a, b in mappings[e]:
                     proj[a] = b
-            else:
-                V, E = G.originalGraph(in_epoch[j])
-                proj = arange(len(V))
             projections.append(proj)
         assert len(P) == len(breakpoints) - 1
 

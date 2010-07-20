@@ -70,19 +70,18 @@ def _emission_row(tree, cols, times, theta):
             return m_j, prob_j
     # After calculating the emission probs for the tree, we multiply by
     # a set of weights, currently 1/4 in all entries.
-    return sum(array([0.25, 0.25, 0.25, 0.25]) * visit(tree)[1])
+    return 0.25*sum(visit(tree)[1])
 
 
 def build_emission_matrix(topologies, tmap, nleaves, interval_times, theta):
-    I = len(interval_times)
-    res = [None] * len(tmap)
-    for topo in topologies:
+    npossible_cols = 1 << nleaves*2
+    res = zeros((len(tmap), npossible_cols))
+    for topo, topo_i in tmap.iteritems():
         temp_res = []
-        for cols_v in xrange(1 << nleaves*2):
+        for i, cols_v in enumerate(xrange(npossible_cols)):
             cols = index_to_cols(cols_v, nleaves)
             row = _emission_row(topo, cols, interval_times, theta)
-            temp_res.append(row)
-        res[tmap[topo]] = temp_res
+            res[topo_i, i] = row
 
     # The index of the matrix is [topo, variant (AAA, AAC, etc.)]
     return matrix(res)
