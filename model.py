@@ -79,7 +79,7 @@ class Model:
         self.paths_prefix_ids = [array(paths_prefix_ids[i]) for i in indices]
         self.mappings = mappings
 
-    def run(self, R, C, epoch_bps):
+    def run(self, R, C, epoch_bps, M=None):
         """Generates the parts needed for the HMM.
         Inititial state probabilities,
         Transition matrix, and
@@ -113,6 +113,9 @@ class Model:
             return sum(L)/len(L)
         theta = 1 / avg([avg(l) for l in C])
 
+        if M == None:
+            M = [identity(nleaves)] * nepochs
+
         tmap = self.tree_map
         G = self.G
         breakpoints = []
@@ -122,11 +125,13 @@ class Model:
         Em = build_emission_matrix(tmap.keys(), tmap, self.nleaves, breakpoints, theta)
 
         def genRateMatrix(n_states,edges,**mapping):
-            def f(t):
-                return mapping[t]
+            def f(t, pa, pb):
+                if t == 'M':
+                    return mapping[t][pa,pb]
+                return mapping[t][pa]
             M = asmatrix(zeros((n_states, n_states)))
-            for (a,t,pop,b) in edges:
-                M[a,b] = f(t)[pop]
+            for (a,t,pop_a,pop_b,b) in edges:
+                M[a,b] = f(t,pop_a,pop_b)
             for i in xrange(n_states):
                 row = M[i, :]
                 M[i,i] = -sum(row)
@@ -137,7 +142,7 @@ class Model:
         all_sizes = []
         for e in xrange(len(epoch_bps)):
             V, E = G.originalGraph(e)
-            Q = genRateMatrix(len(V), E, C=C[e], R=R[e])
+            Q = genRateMatrix(len(V), E, C=C[e], R=R[e], M=M[e])
             nbps = len(epoch_bps[e])
             Qs = Qs + [Q] * (nbps)
             in_epoch = in_epoch + [e] * nbps
@@ -213,9 +218,11 @@ class Model:
         pi = sum(J, axis=0)
         # The transitions have to be normalized
         T = J/pi
+        #for r in xrange(ntrees):
+        #    print abs(sum(T[r,:]) - 1.0)
         return pi, T, Em
 
-def build_epoch_seperated_scc(nleaves, mappings):
+def build_epoch_seperated_scc(nleaves, mappings, migration=None):
     '''Takes in a number of species, and a series of projections to build a
     SCC graph, seperated in to epochs.
     The projections (or mappings) consists of arrays - each species is given
@@ -227,13 +234,15 @@ def build_epoch_seperated_scc(nleaves, mappings):
 >>> g.getEpochSizes()
 [8, 203]
     '''
-    statespace = SeperatedPopulationCoalSystem(range(nleaves))
+    if not migration:
+        migration = [None] * (1 + len(mappings))
+    statespace = SeperatedPopulationCoalSystem(range(nleaves), legal_migrations=migration[0])
     states, edges = statespace.compute_state_space()
     SCCs = [SCCGraph(states, edges, 0)]
     epoch = 1
     for mapping in mappings:
         init = [iset([(mapping[p], tok) for (p, tok) in x]) for x in states]
-        statespace = SeperatedPopulationCoalSystem(range(nleaves), init)
+        statespace = SeperatedPopulationCoalSystem(range(nleaves), init, migration[epoch])
         states, edges = statespace.compute_state_space()
         G = SCCGraph(states, edges, epoch)
         epoch += 1
@@ -260,16 +269,19 @@ def build_simple_model(nleaves, bps):
     '''Creates a model using the simple statespace, where all leaves are
     considered as part of the same population.
     
->>> m = build_simple_model(2, 3)'''
+>>> m = build_simple_model(2, 3)
+>>> pi, T, E = m.run(0.1, 0.1, [[0.1, 0.2, 0.3]])
+>>> T.shape, E.shape
+((3, 3), (3, 16))'''
     return Model(nleaves, [bps])
 
-def build_epoch_seperated_model(nleaves, mappings, epoch_nbps):
+def build_epoch_seperated_model(nleaves, mappings, epoch_nbps, migration=None):
     '''Creates a model seperated in to epochs.
 
 >>> m = build_epoch_seperated_model(2, [], [3])
 >>> m = build_epoch_seperated_model(2, [[0,0]], [2,3])'''
     assert len(mappings) == len(epoch_nbps) - 1
-    mappings, G = build_epoch_seperated_scc(nleaves, mappings)
+    mappings, G = build_epoch_seperated_scc(nleaves, mappings, migration)
     return Model(nleaves, epoch_nbps, G, mappings)
 
 if __name__ == "__main__":

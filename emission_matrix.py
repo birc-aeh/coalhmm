@@ -40,7 +40,8 @@ def _emission_row(tree, cols, times, theta):
         else:
             dt = times[i+1] - times[i]
             a = exp(-dt/theta)
-        return theta - (dt * a)/(1 - a)
+        return times[i] + theta - (dt * a)/(1 - a)
+        #old: return theta - (dt * a)/(1 - a)
 
     # Calculates emission probs for a tree.
     # This is done bottom-up, by giving each leaf 1.0 for the symbol it

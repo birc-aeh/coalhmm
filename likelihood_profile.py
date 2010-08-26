@@ -59,8 +59,8 @@ def logLikelihood(r,c):
     L = len(left)
     
     pi = HMMVector(k)
-    T = HMMTable(*T_.shape)
-    E = HMMTable(*E_.shape)
+    T = HMMMatrix(*T_.shape)
+    E = HMMMatrix(*E_.shape)
 
     copyTable(T, T_)
     copyTable(E, E_)
@@ -69,7 +69,7 @@ def logLikelihood(r,c):
 
 
     hmm = HMM(pi, T, E)
-    f = HMMTable(L,k)
+    f = HMMMatrix(L,k)
     scales = HMMVector(L)
     hmm.forward(obs, scales, f)
     logL = hmm.likelihood(scales)

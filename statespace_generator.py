@@ -41,7 +41,6 @@ class CoalSystem(object):
         self.species = species
         self.transitions = []
         self.state_numbers = None
-        self.compute_states = True
 
     def successors(self, state):
         '''Calculate all successors of "state".
@@ -54,29 +53,29 @@ class CoalSystem(object):
 
         L = list(state)
 
-        ttype,tfunc = self.transitions[0][0]
-        for token in L:
-            pre = iset([token])
-            pop, tproduct = tfunc(token)
-            if tproduct:
-                post = tproduct
-                new_state = state.difference(pre).union(post)
-                yield ttype, pop, new_state
+        for ttype,tfunc in self.transitions[0]:
+            for token in L:
+                pre = iset([token])
+                tproduct = tfunc(token)
+                for pop_a,pop_b,p in tproduct:
+                    post = p
+                    new_state = state.difference(pre).union(post)
+                    yield ttype, pop_a, pop_b, new_state
 
-        ttype,tfunc = self.transitions[1][0]
-        for i in xrange(len(L)):
-            t1 = L[i]
-            for j in xrange(i):
-                t2 = L[j]
-                
-                pre = iset([t1,t2])
+        for ttype,tfunc in self.transitions[1]:
+            for i in xrange(len(L)):
+                t1 = L[i]
+                for j in xrange(i):
+                    t2 = L[j]
+                    
+                    pre = iset([t1,t2])
 
-                pop, tproduct = tfunc(t1,t2)
-                post = tproduct
-                if post == None:
-                    continue
-                new_state = state.difference(pre).union(post)
-                yield ttype, pop, new_state
+                    pop_a, pop_b, tproduct = tfunc(t1,t2)
+                    if tproduct == None:
+                        continue
+                    post = tproduct
+                    new_state = state.difference(pre).union(post)
+                    yield ttype, pop_a, pop_b, new_state
 
 
     def compute_state_space(self):
@@ -93,11 +92,10 @@ class CoalSystem(object):
         while unprocessed:
             s = unprocessed.pop()
             n = self.state_numbers[s]
-            for t,pop,ss in self.successors(s):
+            for t,pop_a,pop_b,ss in self.successors(s):
                 assert s != ss, "We don't like self-loops!"
 
                 if ss not in self.state_numbers:
-                    assert self.compute_states, "Unknown state encountered while we only expect known states!"
                     self.state_numbers[ss] = len(self.state_numbers)
 
                 if ss not in seen:
@@ -105,7 +103,7 @@ class CoalSystem(object):
                     seen.add(ss)
 
                 m = self.state_numbers[ss]
-                edges.append((n,t,pop,m))
+                edges.append((n,t,pop_a,pop_b,m))
 
         return self.state_numbers, edges
 
@@ -122,8 +120,8 @@ class BasicCoalSystem(CoalSystem):
         '''
         _, nucs = token
         left, right = nucs
-        if not (left and right): return 0, None
-        return 0, iset([(0,(left,iset())), (0, (iset(),right))])
+        if not (left and right): return []
+        return [(0, 0, iset([(0,(left,iset())), (0,(iset(),right))]))]
 
     def coalesce(self, token1, token2):
         '''Construct a new token by coalescening "token1" and "token2".'''
@@ -132,7 +130,7 @@ class BasicCoalSystem(CoalSystem):
         left1, right1 = nuc1
         left2, right2 = nuc2
         left, right = left1.union(left2), right1.union(right2)
-        return 0, iset([(0, (left, right))])
+        return 0, 0, iset([(0, (left, right))])
 
     def initial_state(self):
         '''Build the initial state for this system.
@@ -156,20 +154,26 @@ class SeperatedPopulationCoalSystem(CoalSystem):
         '''
         pop, nucs = token
         left, right = nucs
-        if not (left and right): return pop, None # abort transition...
-        return pop, iset([(pop,(left,iset())),
-                          (pop,(iset(),right))])
+        if not (left and right): return [] # abort transition...
+        return [(pop, pop, iset([(pop,(left,iset())),
+                            (pop,(iset(),right))]))]
+
+    def migrate(self, token):
+        '''Move nucleotides from one population to another'''
+        pop, nuc = token
+        res = [(pop,pop2,iset([(pop2,nuc)])) for pop2 in self.legal_migrations[pop]]
+        return res
 
     def coalesce(self, token1, token2):
         '''Construct a new token by coalescening "token1" and "token2".'''
         pop1, nuc1 = token1
         pop2, nuc2 = token2
-        if pop1 != pop2: return -1, None # abort transition...
+        if pop1 != pop2: return -1, -1, None # abort transition...
 
         left1, right1 = nuc1
         left2, right2 = nuc2
         left, right = left1.union(left2), right1.union(right2)
-        return pop1, iset([(pop1,(left, right))])
+        return pop1, pop1, iset([(pop1,(left, right))])
 
     def initial_state(self):
         '''Build the initial state for this system.
@@ -180,13 +184,23 @@ class SeperatedPopulationCoalSystem(CoalSystem):
         '''
         return self.init
 
-    def __init__(self, species, initial_states=None):
+    def __init__(self, species, initial_states=None, legal_migrations=None):
         CoalSystem.__init__(self, species)
-        self.transitions = [[('R',self.recombination)], [('C',self.coalesce)]]
+        self.transitions = [
+                [('R',self.recombination), ('M', self.migrate)],
+                [('C',self.coalesce)]]
         if initial_states == None:
             self.init = [iset([(s,(iset([s]),iset([s]))) for s in self.species])]
         else:
             self.init = initial_states
+        if legal_migrations:
+            self.legal_migrations = legal_migrations
+            #assert sum([arr[i].count(i) for i,arr in enumerate(legal_migrations)]) == 0, \
+            #        "Self-migrations is not allowed"
+        else:
+            self.legal_migrations = {}
+            for s in self.species:
+                self.legal_migrations[s] = []#[s2 for s2 in self.species if s != s2]
 
 if __name__ == "__main__":
     pass

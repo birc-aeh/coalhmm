@@ -50,7 +50,8 @@ def _build_scc(states, edges):
         for a in comp:
             for b in edges[a]:
                 E[i].add(containing_c[b])
-        E[i].remove(i)
+        if i in E[i]:
+            E[i].remove(i)
 
     return V, E, containing_c
 
@@ -134,7 +135,7 @@ class SCCGraph:
             self.states_rev[v] = k
 
         edges2 = [[] for i in xrange(len(states))]
-        for (a,t,pop,b) in edges:
+        for (a,t,pop_a,pop_b,b) in edges:
             edges2[a].append(b)
         self.V, self.E, self.containing_c = _build_scc(states, edges2)
         self.projection_cache = {}
