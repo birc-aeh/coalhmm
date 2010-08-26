@@ -49,6 +49,7 @@ def logLikelihood(c,r,t):
             ]
 
     pi_, T_, E_ = model.run(r, c, time_breakpoints)
+    T_ = T_.transpose()
     E_ = E_.transpose()
     
     k = T_.shape[0]

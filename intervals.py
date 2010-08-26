@@ -21,9 +21,11 @@ def enumerate_all_path_distributions_intervals(componentList, timePoints):
     for i in xrange(nepochs):
         new_paths = []
         for p in tmp_paths:
-            extra = enumerate_all_path_distributions(path_split[i], timePoints[i])
+            next_p = path_split[i]
+            first = next_p[0]
+            extra = enumerate_all_path_distributions(next_p, timePoints[i]-1)
             for p2 in extra:
-                new_paths.append(p + p2)
+                new_paths.append(p + (first,) + p2)
         tmp_paths = new_paths
     for p in tmp_paths:
         yield p

@@ -56,8 +56,13 @@ class Model:
         paths_prefix_ids = []
         # We assume one less breakpoint in the first epoch, because we later
         #  have to add a state where everything is seperated.
-        nbreakpoints[0] = nbreakpoints[0] - 1
+        
+        #nbreakpoints[0] = nbreakpoints[0] - 1 FIXME
+
         for s in enumerate_all_transitions(paths, nbreakpoints):
+            # FIXME: instead of removing the first component in the path,
+            # we shouldn't have it there to begin with...
+            s = s[1:]
             paths_final.append(((0,),)+tuple(G.all_states(e,p) for e,p in s))
             ta = make_tree(G, s, 0)
             tb = make_tree(G, s, 1)
@@ -67,7 +72,9 @@ class Model:
             ppn = path_prefix_numbers
             prefixes = [ppn.setdefault(s[:i+1], len(ppn)) for i in xrange(len(s))]
             paths_prefix_ids.append(prefixes)
-        nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again
+
+        #nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again FIXME
+
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
         # The paths are sorted by the prefix ids to give as much overlap as
@@ -78,6 +85,12 @@ class Model:
         self.paths_final = [paths_final[i] for i in indices]
         self.paths_prefix_ids = [array(paths_prefix_ids[i]) for i in indices]
         self.mappings = mappings
+
+    def projMatrix(self, fromSize, toSize, mapping):
+        res = zeros((fromSize, toSize))
+        for a,b in mapping:
+            res[a,b] = 1
+        return matrix(res)
 
     def run(self, R, C, epoch_bps, M=None):
         """Generates the parts needed for the HMM.
@@ -149,19 +162,17 @@ class Model:
             all_sizes = all_sizes + [epoch_sizes[e]] * nbps
         assert len(Qs) == len(breakpoints)
 
-        P = []
-        projections = []
+        Ps = []
         for j in xrange(len(breakpoints)-1):
             dt = breakpoints[j+1] - breakpoints[j]
-            P.append(expm(Qs[j+1]*dt))
+            P = expm(Qs[j]*dt)
             e = in_epoch[j]
-            V, E = G.originalGraph(e)
-            proj = arange(len(V))
             if in_epoch[j+1] != e:
-                for a, b in mappings[e]:
-                    proj[a] = b
-            projections.append(proj)
-        assert len(P) == len(breakpoints) - 1
+                fromSize = all_sizes[j]
+                toSize = all_sizes[j+1]
+                P = P * self.projMatrix(fromSize, toSize, mappings[e])
+            Ps.append(P)
+        assert len(Ps) == len(breakpoints) - 1
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
@@ -171,12 +182,11 @@ class Model:
             pi_prev = zeros(sizes[0])
             pi_prev[0] = 1.0
             for i in xrange(len(path)-1):
-                P_i = P[i]
-                proj = projections[i]
+                P_i = Ps[i]
                 pi_curr = zeros(sizes[i+1])
                 for s in path[i+1]:
                     for x in path[i]:
-                        pi_curr[s] += P_i[proj[x], s] * pi_prev[x]
+                        pi_curr[s] += P_i[x, s] * pi_prev[x]
                 pi_prev = pi_curr
             return sum(pi_curr)
 
@@ -190,13 +200,12 @@ class Model:
                 sub_path = path_prefix_ids[i-1]
                 if sub_path in joint_prob_cache:
                     return joint_prob_cache[sub_path]
-                P_i = P[i-1]
-                proj = projections[i-1]
+                P_i = Ps[i-1]
                 pi_prev = jp(i-1)
                 pi_curr = zeros(sizes[i])
                 for s in path[i]:
                     for x in path[i-1]:
-                        pi_curr[s] += P_i[proj[x], s] * pi_prev[x]
+                        pi_curr[s] += P_i[x, s] * pi_prev[x]
                 joint_prob_cache[sub_path] = pi_curr
                 return pi_curr
             return sum(jp(len(path)-1))

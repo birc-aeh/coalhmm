@@ -52,8 +52,8 @@ def simulate(c,r,t,N):
         col = choose_weighted(E[S[i-1],:])
         for ci, cv in index_to_cols(col, species):
             columns[ci][i-1] = cv
-        asd = T[S[i-1],:]
         S[i] = choose_weighted(T[:,S[i-1]])
+
     print "\r" + ' '*104, "\r",
 
     return columns
@@ -61,7 +61,7 @@ def simulate(c,r,t,N):
 folder = "simulated"
 char_map = ['A', 'C', 'G', 'T']
 for nstates in [10]:#, 4, 8, 10]:
-    for run in xrange(50):
+    for run in xrange(10):
         print "Simulating with", nstates, "states"
         print "  C =", C, "R =", R, "tau = ", tau
         noBrPointsPerEpoch = [1, nstates]

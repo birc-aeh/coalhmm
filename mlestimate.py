@@ -19,7 +19,7 @@ def readData(fname):
 
    obs = Sequence(len(left))
    for n in xrange(len(left)):
-      obs[n] = left[n-1] + (right[n-1] << 2) #+ (righter[n-1] << 4)
+      obs[n] = left[n-1] + (right[n-1] << 2) + (righter[n-1] << 4)
 
    return obs, len(left)
 
@@ -41,7 +41,9 @@ def logLikelihood(r,c):
     
     k = T_.shape[0]
     #L = len(obs)
-    
+
+    #return
+
     pi = HMMVector(k)
     T = HMMTable(*T_.shape)
     E = HMMTable(*E_.shape)
@@ -70,10 +72,11 @@ R = (1.5e-8/25) / 1.0e-9 / 2 # FIXME: not sure about the last / 2 !!!!
 
 obs, L = readData("seq1.fasta")
 logFile = open('seq1-5states-2seqs-mle.txt','w')
-noSeqs = 2
-noIntervals = 5
+noSeqs = 3
+noIntervals = 10
 noBrPoints = noIntervals
 model = build_simple_model(noSeqs, noIntervals)
 
-fmin(lambda x: -logLikelihood(*x), (R,C), callback=callBack)
+#fmin(lambda x: -logLikelihood(*x), (R,C), callback=callBack)
 
+logLikelihood(R, C)
