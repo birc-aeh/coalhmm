@@ -224,7 +224,7 @@ class Model:
         # TODO: reasonable epsilon?
         assert abs(total_joint - 1.0) < 0.0001
         # The starting probabilities are equal to the row-sums of J
-        pi = sum(J, axis=0)
+        pi = sum(J, axis=1)
         # The transitions have to be normalized
         T = J/pi
         #for r in xrange(ntrees):

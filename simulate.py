@@ -60,8 +60,8 @@ def simulate(c,r,t,N):
 
 folder = "simulated"
 char_map = ['A', 'C', 'G', 'T']
-for nstates in [10]:#, 4, 8, 10]:
-    for run in xrange(10):
+for nstates in [int(sys.argv[1])]:#, 4, 8, 10]:
+    for run in xrange(20):
         print "Simulating with", nstates, "states"
         print "  C =", C, "R =", R, "tau = ", tau
         noBrPointsPerEpoch = [1, nstates]

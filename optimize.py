@@ -84,10 +84,8 @@ def computeLikelihoodProfiles(outputFilePrefix):
          print >> f, val, logL
       f.close()
 
-def optimize(file_in, nstates):
+def optimize(file_in):
     global noBrPointsPerEpoch, model, len_obs, obs
-    noBrPointsPerEpoch = [1, int(nstates)]
-    model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
     len_obs, obs = readObservations(file_in, ["'0'","'1'"])
     #logFile = open(file_out,'w')
     def callBack(x):
@@ -119,18 +117,18 @@ Rs = map(recrate_to_R, linspace(0.1, 3.0, samples))
 Ts = linspace(0.5*tau, 5.0*tau, samples)
 
 #len_obs, obs = readObservations(sys.argv[1], ["'0'","'1'"])
-folder = "self_sim2"
-for nstates in [int(sys.argv[1])]:
+folder = "self_sim4"
+for nstates in [int(sys.argv[2])]:
     print "Starting the", nstates, "state simulations"
     noBrPointsPerEpoch = [1, nstates]
     model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
-    f = open("%s/%i_values.txt" % (folder,nstates), 'w')
+    f = open("%s/%s_%i_values.txt" % (folder,sys.argv[1],nstates), 'w')
     print >>f, "C\tR\ttau\tlogL"
-    for run in xrange(50):
-        filename = "simulated/sim_10_%i.txt" % run
+    for run in xrange(20):
+        filename = "simulated/sim_%s_%i.txt" % (sys.argv[1], run)
         while not os.path.exists(filename):
             time.sleep(10.0)
-        c,r,t = optimize(filename, nstates)
+        c,r,t = optimize(filename)
         print >>f, '\t'.join(map(repr, [c,r,t,logLikelihood(c,r,t)]))
         f.flush()
     f.close()
