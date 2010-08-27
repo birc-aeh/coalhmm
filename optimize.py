@@ -17,7 +17,6 @@ C = 1.0 / theta
 R = (1.5e-8/gen) / 1.0e-9
 tau = 325000e-9
 
-noBrPointsPerEpoch = None
 len_obs, obs = 0, None
 
 def readObservations(filename, seq_names):
@@ -42,6 +41,7 @@ def logLikelihood(model, c, r, t):
     if c < 0 or r < 0 or t < 0:
         return -1e18
     theta = 1.0 / c
+    noBrPointsPerEpoch = model.nbreakpoints
     time_breakpoints = [
             [0.0],
             [(x*theta+t) for x in expon.ppf([float(i)/noBrPointsPerEpoch[1] for i in xrange(noBrPointsPerEpoch[1])])]
@@ -84,12 +84,11 @@ def computeLikelihoodProfiles(outputFilePrefix):
       f.close()
 
 def optimize(file_in, model, seqnames, cb=None):
-    global noBrPointsPerEpoch,len_obs, obs
+    global len_obs, obs
     len_obs, obs = readObservations(file_in, seqnames)
     return fmin(lambda x: -logLikelihood(model, *x), (C,R,tau), callback=cb)
 
 if __name__ == "__main__":
-    global model, noBrPointsPerEpoch
     #len_obs, obs = readObservations(sys.argv[1], ["'0'","'1'"])
     #noBrPointsPerEpoch = [1, 3]
     #model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
