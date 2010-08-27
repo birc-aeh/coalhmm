@@ -17,8 +17,7 @@ C = 1.0 / theta
 R = (1.5e-8/gen) / 1.0e-9
 tau = 325000e-9
 
-noBrPointsPerEpoch = [1, 6]
-model = None
+noBrPointsPerEpoch = None
 len_obs, obs = 0, None
 
 def readObservations(filename, seq_names):
@@ -85,7 +84,7 @@ def computeLikelihoodProfiles(outputFilePrefix):
       f.close()
 
 def optimize(file_in, model, seqnames, cb=None):
-    global noBrPointsPerEpoch, model, len_obs, obs
+    global noBrPointsPerEpoch,len_obs, obs
     len_obs, obs = readObservations(file_in, seqnames)
     return fmin(lambda x: -logLikelihood(model, *x), (C,R,tau), callback=cb)
 
