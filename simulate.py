@@ -1,7 +1,6 @@
 from scipy import *
 from scipy.linalg import expm
 from scipy.stats import expon
-from pylab import *
 from model import build_simple_model, build_epoch_seperated_model
 from fasta_parser import readAlignment
 from pyhmmlib import *
@@ -9,7 +8,11 @@ from itertools import izip
 from scipy.optimize import fmin
 from numpy.random import multinomial
 import os
+import sys
 
+do_progress_bar = False
+if len(sys.argv) > 2:
+    do_progress_bar = bool(sys.argv[2])
 
 Ne = 25000.0
 gen = 20
@@ -45,27 +48,30 @@ def simulate(c,r,t,N):
     E = asarray(E)
 
     S[0] = choose_weighted(pi)
-    print "  [" + ' '*100 + ']',
+    if do_progress_bar:
+        print "  [" + ' '*100 + ']',
     for i in xrange(1, N):
         progress = 1.0*i/N
-        print "\r  [" + '='*int(progress*100) + ' '*int((1.0 - progress)*100) + ']',
+        if do_progress_bar:
+            print "\r  [" + '='*int(progress*100) + ' '*int((1.0 - progress)*100) + ']',
         col = choose_weighted(E[S[i-1],:])
         for ci, cv in index_to_cols(col, species):
             columns[ci][i-1] = cv
         S[i] = choose_weighted(T[:,S[i-1]])
 
-    print "\r" + ' '*104, "\r",
+    if do_progress_bar:
+        print "\r" + ' '*104, "\r",
 
     return columns
 
-folder = "simulated"
+folder = "simulated_3s"
 char_map = ['A', 'C', 'G', 'T']
-for nstates in [int(sys.argv[1])]:#, 4, 8, 10]:
+for nstates in [int(sys.argv[1])]:
     for run in xrange(20):
         print "Simulating with", nstates, "states"
         print "  C =", C, "R =", R, "tau = ", tau
         noBrPointsPerEpoch = [1, nstates]
-        model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
+        model = build_epoch_seperated_model(3, [[0,0,0]], noBrPointsPerEpoch)
         print "  Model ready"
         cols = simulate(C, R, tau, 1000000)
         print "  Simulation done, writing result"

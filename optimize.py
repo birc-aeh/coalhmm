@@ -39,7 +39,7 @@ def copyTable(dst, src):
        for j in xrange(src.shape[1]): 
            dst[i,j] = src[i,j]
 
-def logLikelihood(c,r,t):
+def logLikelihood(model, c, r, t):
     if c < 0 or r < 0 or t < 0:
         return -1e18
     theta = 1.0 / c
@@ -84,54 +84,49 @@ def computeLikelihoodProfiles(outputFilePrefix):
          print >> f, val, logL
       f.close()
 
-def optimize(file_in):
+def optimize(file_in, model, seqnames, cb=None):
     global noBrPointsPerEpoch, model, len_obs, obs
-    len_obs, obs = readObservations(file_in, ["'0'","'1'"])
-    #logFile = open(file_out,'w')
-    def callBack(x):
-        print ' '.join(map(str,x)),
-        print logLikelihood(*x)
-    return fmin(lambda x: -logLikelihood(*x), (C,R,tau))
-    #logFile.close()
+    len_obs, obs = readObservations(file_in, seqnames)
+    return fmin(lambda x: -logLikelihood(model, *x), (C,R,tau), callback=cb)
 
 if __name__ == "__main__":
-    pass
+    global model, noBrPointsPerEpoch
     #len_obs, obs = readObservations(sys.argv[1], ["'0'","'1'"])
     #noBrPointsPerEpoch = [1, 3]
     #model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
     #print optimize(*sys.argv[1:])
     #computeLikelihoodProfiles(sys.argv[2])
 
-def popsize_to_C(ne):
-    return 1.0 / (2.0 * gen * ne * 1e-9)
-def C_to_popsize(c):
-    return 1.0 / c / (2 * gen * 1e-9)
-def recrate_to_R(rec):
-    return rec / (gen * 0.1)
-def R_to_recrate(r):
-    return r * gen * 0.1
+    def popsize_to_C(ne):
+        return 1.0 / (2.0 * gen * ne * 1e-9)
+    def C_to_popsize(c):
+        return 1.0 / c / (2 * gen * 1e-9)
+    def recrate_to_R(rec):
+        return rec / (gen * 0.1)
+    def R_to_recrate(r):
+        return r * gen * 0.1
 
-samples = 40
-Cs = map(popsize_to_C, linspace(0.1*Ne, 2.0*Ne, samples))
-Rs = map(recrate_to_R, linspace(0.1, 3.0, samples))
-Ts = linspace(0.5*tau, 5.0*tau, samples)
+    samples = 40
+    Cs = map(popsize_to_C, linspace(0.1*Ne, 2.0*Ne, samples))
+    Rs = map(recrate_to_R, linspace(0.1, 3.0, samples))
+    Ts = linspace(0.5*tau, 5.0*tau, samples)
 
-#len_obs, obs = readObservations(sys.argv[1], ["'0'","'1'"])
-folder = "self_sim4"
-for nstates in [int(sys.argv[2])]:
-    print "Starting the", nstates, "state simulations"
-    noBrPointsPerEpoch = [1, nstates]
-    model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
-    f = open("%s/%s_%i_values.txt" % (folder,sys.argv[1],nstates), 'w')
-    print >>f, "C\tR\ttau\tlogL"
-    for run in xrange(20):
-        filename = "simulated/sim_%s_%i.txt" % (sys.argv[1], run)
-        while not os.path.exists(filename):
-            time.sleep(10.0)
-        c,r,t = optimize(filename)
-        print >>f, '\t'.join(map(repr, [c,r,t,logLikelihood(c,r,t)]))
-        f.flush()
-    f.close()
+    #len_obs, obs = readObservations(sys.argv[1], ["'0'","'1'"])
+    folder = "self_sim6"
+    for nstates in [int(sys.argv[2])]:
+        print "Starting the", nstates, "state simulations"
+        noBrPointsPerEpoch = [1, nstates]
+        model = build_epoch_seperated_model(3, [[0,0,0]], noBrPointsPerEpoch)
+        f = open("%s/%s_%i_values.txt" % (folder,sys.argv[1],nstates), 'w')
+        print >>f, "C\tR\ttau\tlogL"
+        for run in xrange(20):
+            filename = "simulated_3s/sim_%s_%i.txt" % (sys.argv[1], run)
+            while not os.path.exists(filename):
+                time.sleep(10.0)
+            c,r,t = optimize(filename, model, ["'0'","'1'","'2'"])
+            print >>f, '\t'.join(map(repr, [c,r,t,logLikelihood(model,c,r,t)]))
+            f.flush()
+        f.close()
 
         # logFile = open('%s/mle_t_%i_%.txt' % (folder,nstates),'w')
         # print >>logFile, '\t'.join(['Recrate', 'Popsize', 'tau', 'logL'])
