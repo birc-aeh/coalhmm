@@ -42,9 +42,11 @@ class Model:
         self.G = G
         # Build a list of all paths through the SCC graph
         paths = []
-        def paths_filler(S):
+        for S in G.all_paths():
             paths.append(S[:])
-        G.all_paths(paths_filler)
+        #print "All paths"
+        #for p in paths:
+        #    print ["e%i_c%i" % (e,c) for e,c in p]
         # Build all distributions of the paths over our intervals
         paths_final = []
         tree_map = {}
@@ -170,7 +172,8 @@ class Model:
             if in_epoch[j+1] != e:
                 fromSize = all_sizes[j]
                 toSize = all_sizes[j+1]
-                P = P * self.projMatrix(fromSize, toSize, mappings[e])
+                X = self.projMatrix(fromSize, toSize, mappings[e])
+                P = matrix(P) * matrix(X)
             Ps.append(P)
         assert len(Ps) == len(breakpoints) - 1
 
@@ -227,8 +230,6 @@ class Model:
         pi = sum(J, axis=1)
         # The transitions have to be normalized
         T = J/pi
-        #for r in xrange(ntrees):
-        #    print abs(sum(T[r,:]) - 1.0)
         return pi, T, Em
 
 def build_epoch_seperated_scc(nleaves, mappings, migration=None):
@@ -269,7 +270,7 @@ def build_epoch_seperated_scc(nleaves, mappings, migration=None):
             for v in old.all_states(c):
                 old_state = old.states_rev[v]
                 new_state = iset([(mappings[i][p], tok) for (p, tok) in old_state])
-                m = G.add_component_edge(i, old_state, i+1,new_state)
+                m = G.add_component_edge(i, old_state, i+1, new_state)
                 tmp_proj.append(m)
         projections.append(tmp_proj)
     return projections, G

@@ -22,7 +22,7 @@ C = 1.0 / theta
 R = (1.5e-8/gen) / 1.0e-9
 tau = 325000e-9
 
-noBrPointsPerEpoch = [1, 6]
+noBrPointsPerEpoch = [1, 2, 2]
 model = None
 
 def choose_weighted(P):
@@ -35,13 +35,22 @@ def index_to_cols(value, n):
 
 def simulate(c,r,t,N):
     theta = 1.0 / c
-    time_breakpoints = [
-            [0.0],
-            [(x*theta+t) for x in expon.ppf([float(i)/noBrPointsPerEpoch[1] for i in xrange(noBrPointsPerEpoch[1])])]
-            ]
+    time_breakpoints = [[0.0]]
+    for e in xrange(1, len(noBrPointsPerEpoch)):
+        nbps = noBrPointsPerEpoch[e]
+        time_breakpoints.append(
+                [(x*theta+t[e]) for x in expon.ppf([float(i)/nbps for i in xrange(nbps)])]
+                )
+
+    M = []
+    m = [0.0, 0.01, 0.0]
+    for e in xrange(len(noBrPointsPerEpoch)):
+        newM = identity(2)
+        newM[:] = m[e]
+        M.append(newM)
 
     print "  Matrices generated"
-    pi, T, E = model.run(r, c, time_breakpoints)
+    pi, T, E = model.run(r, c, time_breakpoints, M)
     species = model.nleaves
     S = zeros(N, int)
     columns = [zeros(N, int) for _ in xrange(species)]
@@ -64,16 +73,16 @@ def simulate(c,r,t,N):
 
     return columns
 
-folder = "simulated_3s"
+folder = "simulated_3epochs_mig"
 char_map = ['A', 'C', 'G', 'T']
 for nstates in [int(sys.argv[1])]:
     for run in xrange(20):
         print "Simulating with", nstates, "states"
         print "  C =", C, "R =", R, "tau = ", tau
-        noBrPointsPerEpoch = [1, nstates]
-        model = build_epoch_seperated_model(3, [[0,0,0]], noBrPointsPerEpoch)
+        noBrPointsPerEpoch = [1, nstates, nstates]
+        model = build_epoch_seperated_model(2, [[0,1], [0,0]], noBrPointsPerEpoch, [None, [[1], [0]], None])
         print "  Model ready"
-        cols = simulate(C, R, tau, 1000000)
+        cols = simulate(C, R, [0.0, 0.25*tau, tau], 1000000)
         print "  Simulation done, writing result"
         filename = '%s/sim_%i_%i.txt' % (folder,nstates,run)
         fastaFile = open(filename+".tmp",'w')

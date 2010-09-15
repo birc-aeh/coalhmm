@@ -73,7 +73,7 @@ class EpochSeperatedSCCGraph:
         assert e1 != e2
         res = self.G[e1].original_states[s1], self.G[e2].original_states[s2]
         c1, c2 = self.G[e1].find_component(s1), self.G[e2].find_component(s2)
-        self.E[(e1,res[0])] = (e2,c2)
+        self.E[(e1,c1)] = (e2,c2)
 
         return res
 
@@ -94,36 +94,31 @@ class EpochSeperatedSCCGraph:
         component"""
         return self.G[epoch].projected(v, side)
 
-    def all_paths(self, fun):
-        """Call 'fun' on all paths starting form the initial component"""
-        def with_prefix(prefix):
-            def f(S):
-                last = S[-1]
-                nS = prefix + S
-                if last in self.E:
-                    new_e, new_s = self.E[last]
-                    #print S, new_e, new_s
-                    self.G[new_e].all_paths(with_prefix(nS), new_s, new_e)
-                else:
-                    fun(nS)
-            return f
-        self.G[0].all_paths(with_prefix([]))
+    def all_paths(self):
+        allE = dict([(k, set([v])) for k, v in self.E.iteritems()])
+        for e in xrange(len(self.G)):
+            Ge = self.G[e]
+            for c, links in enumerate(Ge.E):
+                for link in links:
+                    allE.setdefault((e,c), set()).add((e,link))
+        S = []
+        def dfs(a):
+            S.append(a)
+            if a not in allE:
+                yield S
+            else:
+                for b in allE[a]:
+                    for res in dfs(b):
+                        yield res
+            S.pop()
+        return dfs((0,0))
 
 class SCCGraph:
-    def all_paths(self, fun, start=None, epoch=0):
-        """Call 'fun' on all paths starting form the initial component or
-        the given start component.
-        Remember to clone S the input to fun, if it is to be stored."""
-        def dfs(a, S, E):
-            S.append((epoch, a))
-            if len(E[a]) == 0:
-                fun(S)
-            for b in E[a]:
-                dfs(b, S, E)
-            S.pop()
-        if start == None:
-            start = len(self.V)-1
-        dfs(start, [], self.E)
+    def edges_at_component_level(self):
+        """Write a dot format graph of this graph to f."""
+        for c, links in enumerate(self.E):
+            for link in links:
+                yield c, link
 
     def __init__(self, states, edges, epoch=0):
         if states == None and edges == None:

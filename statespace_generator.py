@@ -105,6 +105,13 @@ class CoalSystem(object):
                 m = self.state_numbers[ss]
                 edges.append((n,t,pop_a,pop_b,m))
 
+        remapping = {}
+        mapped_state_numbers = {}
+        for k, v in self.state_numbers.iteritems():
+            remapping.setdefault(v, len(remapping))
+            mapped_state_numbers[k] = remapping[v]
+        self.state_numbers = mapped_state_numbers
+        edges = [(remapping[a],t,pa,pb,remapping[b]) for a,t,pa,pb,b in edges]
         return self.state_numbers, edges
 
 
