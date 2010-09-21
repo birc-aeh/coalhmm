@@ -59,9 +59,12 @@ class EpochSeperatedSCCGraph:
     def __init__(self):
         self.G = []
         self.E = {}
+        self.init_component = (-1, -1)
 
     def addSubGraph(self, sg):
         self.G.append(sg)
+        if len(self.G) == 1:
+            self.init_component = (0, sg.find_component(sg.initial()))
 
     def getEpochSizes(self):
         return [len(x.original_states) for x in self.G]
@@ -111,11 +114,10 @@ class EpochSeperatedSCCGraph:
                     for res in dfs(b):
                         yield res
             S.pop()
-        return dfs((0,0))
+        return dfs(self.init_component)
 
 class SCCGraph:
     def edges_at_component_level(self):
-        """Write a dot format graph of this graph to f."""
         for c, links in enumerate(self.E):
             for link in links:
                 yield c, link

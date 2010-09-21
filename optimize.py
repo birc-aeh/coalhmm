@@ -39,9 +39,8 @@ def _logLikelihood_3(model, obs, c, r, m, t1, t2):
 
 def logLikelihood(model, obs, c, r, m, t):
     noBrPointsPerEpoch = model.nbreakpoints
-    assert noBrPointsPerEpoch[0] == 1
     nleaves = model.nleaves
-    time_breakpoints = [[0.0]]
+    time_breakpoints = [linspace(0.0, t[1]*0.9, noBrPointsPerEpoch[0])]
     for e in xrange(1, len(noBrPointsPerEpoch)):
         theta = 1.0 / c[e]
         nbps = noBrPointsPerEpoch[e]
