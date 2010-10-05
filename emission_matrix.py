@@ -25,9 +25,9 @@ def index_to_cols(value, n):
 # Instead of a matrix we can calculate JC directly
 def _jukes_cantor(a, b, dt):
     if a == b:
-        return 0.25 + 0.75 * exp(-4*dt)
+        return 0.25 + 0.75 * exp(-4.0/3.0*dt)
     else:
-        return 0.25 - 0.25 * exp(-4*dt)
+        return 0.25 - 0.25 * exp(-4.0/3.0*dt)
 
 def _emission_row(tree, cols, times, theta):
     # m calculates the time in an interval that should be used for further
