@@ -14,15 +14,15 @@ do_progress_bar = False
 if len(sys.argv) > 2:
     do_progress_bar = bool(sys.argv[2])
 
-Ne = 25000.0
+Ne = 30000.0
 gen = 20
 theta = 2*Ne * gen * 1e-9
 
 C = 1.0 / theta
 R = (1.5e-8/gen) / 1.0e-9
-tau = 325000e-9
+tau = 500000e-9
 
-noBrPointsPerEpoch = [1, 2, 2]
+noBrPointsPerEpoch = [1, 4]
 model = None
 
 def choose_weighted(P):
@@ -73,16 +73,16 @@ def simulate(c,r,t,N):
 
     return columns
 
-folder = "simulated_3epochs_mig"
+folder = "simulated_20101005"
 char_map = ['A', 'C', 'G', 'T']
 for nstates in [int(sys.argv[1])]:
     for run in xrange(20):
         print "Simulating with", nstates, "states"
         print "  C =", C, "R =", R, "tau = ", tau
-        noBrPointsPerEpoch = [1, nstates, nstates]
-        model = build_epoch_seperated_model(2, [[0,1], [0,0]], noBrPointsPerEpoch, [None, [[1], [0]], None])
+        noBrPointsPerEpoch = [1, nstates]
+        model = build_epoch_seperated_model(2, [[0,0]], noBrPointsPerEpoch)
         print "  Model ready"
-        cols = simulate(C, R, [0.0, 0.25*tau, tau], 1000000)
+        cols = simulate(C, R, [0.0, tau], 500000)
         print "  Simulation done, writing result"
         filename = '%s/sim_%i_%i.txt' % (folder,nstates,run)
         fastaFile = open(filename+".tmp",'w')
