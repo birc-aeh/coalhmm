@@ -146,7 +146,9 @@ class Model:
                 return mapping[t][pa]
             M = asmatrix(zeros((n_states, n_states)))
             for (a,t,pop_a,pop_b,b) in edges:
+                assert a != b
                 M[a,b] = f(t,pop_a,pop_b)
+            assert all(M >= 0)
             for i in xrange(n_states):
                 row = M[i, :]
                 M[i,i] = -sum(row)
@@ -168,6 +170,8 @@ class Model:
         for j in xrange(len(breakpoints)-1):
             dt = breakpoints[j+1] - breakpoints[j]
             P = expm(Qs[j]*dt)
+            assert dt >= 0
+            assert all(P >= 0)
             e = in_epoch[j]
             if in_epoch[j+1] != e:
                 fromSize = all_sizes[j]
@@ -221,6 +225,7 @@ class Model:
                 self.paths_prefix_ids,
                 self.paths_final_indices):
             joint = joint_prob_cached(all_sizes, p, pp)
+            assert joint >= 0
             total_joint += joint
             J[a, b] += joint
 

@@ -37,16 +37,22 @@ def _logLikelihood_3(model, obs, c, r, m, t1, t2):
         return -1e18
     return logLikelihood(model, obs, [c, c, c], [r, r, r], [m, m, m], [0.0, t1, t2])
 
-def logLikelihood(model, obs, c, r, m, t):
+def logLikelihood(model, obs, c, r, m, t, posterior_decoding=False):
     noBrPointsPerEpoch = model.nbreakpoints
     nleaves = model.nleaves
-    time_breakpoints = [linspace(0.0, t[1]*0.9, noBrPointsPerEpoch[0])]
-    for e in xrange(1, len(noBrPointsPerEpoch)):
+    nepochs = len(noBrPointsPerEpoch)
+    time_breakpoints = []
+    all_time_breakpoints = []
+    for e in xrange(0, nepochs):
         theta = 1.0 / c[e]
         nbps = noBrPointsPerEpoch[e]
-        time_breakpoints.append(
-                [(x*theta+t[e]) for x in expon.ppf([float(i)/nbps for i in xrange(nbps)])]
-                )
+        if e == nepochs - 1:
+            new_bps = [(x*theta+t[e]) for x in expon.ppf([float(i)/nbps for i in xrange(nbps)])]
+        else:
+            new_bps = linspace(t[e], t[e+1], nbps+1)[:nbps]
+        time_breakpoints.append(new_bps)
+        for bp in new_bps:
+            all_time_breakpoints.append(bp)
 
     M = []
     for e in xrange(len(noBrPointsPerEpoch)):
@@ -55,9 +61,9 @@ def logLikelihood(model, obs, c, r, m, t):
         M.append(newM)
 
     pi_, T_, E_ = model.run(r, c, time_breakpoints, M)
-    #print pi_
-    #print T_
-    #print E_
+    assert not any(isnan(pi_))
+    assert not any(isnan(T_))
+    assert not any(isnan(E_))
     T_ = T_.transpose()
     E_ = E_.transpose()
 
@@ -74,11 +80,19 @@ def logLikelihood(model, obs, c, r, m, t):
         pi[i] = v
 
     hmm = HMM(pi, T, E)
-    f = HMMMatrix(L,k)
+    F = HMMMatrix(L,k)
     scales = HMMVector(L)
-    hmm.forward(obs, scales, f)
+    hmm.forward(obs, scales, F)
     logL = hmm.likelihood(scales)
-    return logL
+    assert logL == logL
+    if posterior_decoding:
+        B = HMMMatrix(L,k)
+        hmm.backward(obs, scales, B)
+        PD = HMMMatrix(L,k)
+        hmm.posterior_decoding(obs, F, B, scales, PD)
+        return logL, PD, all_time_breakpoints, pi_
+    else:
+        return logL
 
 def optimize2(file_in, model, seqnames, init, cb=None):
     obs = readObservations(file_in, seqnames)
