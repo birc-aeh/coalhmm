@@ -30,20 +30,19 @@ def logL(model, obs, c, r, t):
     return logLikelihood(model, obs, [c, c], [r, r], [0, 0], [0.0, t])
 
 def optimize(file_in, model, seqnames, init):
-    obs = readObservations(file_in, seqnames)
+    obs, col_map = readObservations(file_in, seqnames)
     nbps = model.nbreakpoints
     return fmin(lambda x: -logL(model, obs, *x), init)
 
 if __name__ == "__main__":
-    print "From params:", 1e-9*(0.5e6 + 2*Ne*gen)
-    model = build_epoch_seperated_model(2, [[0,0]], [1,4])
-    f = open("res2.txt", "w")
+    #print "From params:", 1e-9*(0.5e6 + 2*Ne*gen)
+    nstates = int(sys.argv[1])
+    model = build_epoch_seperated_model(2, [[0,0]], [1,nstates])
+    f = open("res3_%i.txt" % nstates, "w")
     print >>f, "counted\tC\tR\ttau_1"
     for i in ["01", "02", "03", "04", "05", "06",
               "07", "08", "09", "10", "11"]:
         filename = "20101005_sim%s" % i
-    #for i in [1]:
-    #    filename = "../simulated_20101005/sim_4_0.txt"
         alignments = readAlignment(filename)
         seqnames = ["'1'", "'2'"]
         ca = alignments[seqnames[0]]
@@ -52,9 +51,9 @@ if __name__ == "__main__":
         for a, b in izip(ca, cb):
             if a != b:
                 diffs += 1
-        print "Counted:", 1.0 * diffs / len(ca)
+        #print "Counted:", 1.0 * diffs / len(ca)
         c,r,t = optimize(filename, model, seqnames, (C,R,tau))
-        print "From model estimate:", (t + 1/c), c, r, t
+        #print "From model estimate:", (t + 1/c), c, r, t
         print >>f, "\t".join(map(str, [1.0*diffs / len(ca), c, r, t]))
         f.flush()
     f.close()

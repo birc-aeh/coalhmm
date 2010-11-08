@@ -8,26 +8,22 @@ def _only(s):
     for x in s:
         return x
 
-# A column of symbols is converted to an integer by giving each entry
-#  2 bits in the result, so: a,b,c,d <=> a + (b << 2) + (c << 4) + (d << 6)
-def cols_to_index(cols):
-    """Converts a column of up to four symbols so an integer"""
-    i = 0
-    s = 0
-    for v in cols:
-        s += v << i
-        i += 2
-    return s
-def index_to_cols(value, n):
-    """Converts an integer to a column of n symbols"""
-    return map(lambda i: (value >> 2*i) & 3, xrange(n))
-
 # Instead of a matrix we can calculate JC directly
 def _jukes_cantor(a, b, dt):
     if a == b:
         return 0.25 + 0.75 * exp(-4.0/3.0*dt)
     else:
         return 0.25 - 0.25 * exp(-4.0/3.0*dt)
+
+_to_val = {'A':0,'C':1,'G':2,'T':3}
+def _leaf_prob(cols, species):
+    symbol = cols[species]
+    if symbol in ['N', '-']:
+        return array([0.25, 0.25, 0.25, 0.25]) # FIXME: assumes JC
+    else:
+        res = array(zeros(4))
+        res[_to_val[symbol]] = 1.0
+        return res
 
 def _emission_row(tree, cols, times, theta):
     # m calculates the time in an interval that should be used for further
@@ -41,7 +37,6 @@ def _emission_row(tree, cols, times, theta):
             dt = times[i+1] - times[i]
             a = exp(-dt/theta)
         return times[i] + theta - (dt * a)/(1 - a)
-        #old: return theta - (dt * a)/(1 - a)
 
     # Calculates emission probs for a tree.
     # This is done bottom-up, by giving each leaf 1.0 for the symbol it
@@ -54,9 +49,7 @@ def _emission_row(tree, cols, times, theta):
     # At the end the node takes the product of the results for each child.
     def visit(t):
         if isinstance(t, iset): # leaf
-            res = array([0.0, 0.0, 0.0, 0.0])
-            res[cols[_only(t)]] = 1.0
-            return 0.0, res
+            return 0.0, _leaf_prob(cols, _only(t))
         else: # node
             j, children = t
             m_j = m(j)
@@ -74,15 +67,15 @@ def _emission_row(tree, cols, times, theta):
     return 0.25*sum(visit(tree)[1])
 
 
-def build_emission_matrix(topologies, tmap, nleaves, interval_times, theta):
-    npossible_cols = 1 << nleaves*2
+def build_emission_matrix(topologies, tmap, col_map, nleaves,
+        interval_times, theta):
+    npossible_cols = len(col_map)
     res = zeros((len(tmap), npossible_cols))
     for topo, topo_i in tmap.iteritems():
         temp_res = []
-        for i, cols_v in enumerate(xrange(npossible_cols)):
-            cols = index_to_cols(cols_v, nleaves)
+        for cols, cols_v in col_map.iteritems():
             row = _emission_row(topo, cols, interval_times, theta)
-            res[topo_i, i] = row
+            res[topo_i, cols_v] = row
 
     # The index of the matrix is [topo, variant (AAA, AAC, etc.)]
     return matrix(res)

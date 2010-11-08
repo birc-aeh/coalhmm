@@ -14,13 +14,18 @@ def readObservations(filename, seq_names):
 
     first = alignments[seq_names[0]]
     to_val = {'A':0,'C':1,'G':2,'T':3}
-    obs = Sequence(len(first))
+    cols = [[] for _ in range(len(first))]
     for i, seq_name in enumerate(seq_names):
         seq = alignments[seq_name]
         for n in xrange(len(seq)):
-            v = to_val[seq[n-1]]
-            obs[n] += v << 2*i
-    return obs
+            v = seq[n-1]
+            cols[n].append(v)
+    col_map = dict()
+    obs = Sequence(len(first))
+    for i, col in enumerate(cols):
+        v = col_map.setdefault(tuple(col), len(col_map))
+        obs[i] = v
+    return obs, col_map
 
 def copyTable(dst, src):
    for i in xrange(src.shape[0]):
@@ -31,13 +36,13 @@ def copyTable(dst, src):
 def _logLikelihood_2(model, obs, c, r, m, t):
     if c < 0 or r < 0 or t < 0 or m < 0:
         return -1e18
-    return logLikelihood(model, obs, [c, c], [r, r], [m, m], [0.0, t])
+    return logLikelihood(model, obs, None, [c, c], [r, r], [m, m], [0.0, t])
 def _logLikelihood_3(model, obs, c, r, m, t1, t2):
     if c < 0 or r < 0 or t1 < 0 or t2 < t1 or m < 0:
         return -1e18
-    return logLikelihood(model, obs, [c, c, c], [r, r, r], [m, m, m], [0.0, t1, t2])
+    return logLikelihood(model, obs, None, [c, c, c], [r, r, r], [m, m, m], [0.0, t1, t2])
 
-def logLikelihood(model, obs, c, r, m, t, posterior_decoding=False):
+def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
     noBrPointsPerEpoch = model.nbreakpoints
     nleaves = model.nleaves
     nepochs = len(noBrPointsPerEpoch)
@@ -60,7 +65,7 @@ def logLikelihood(model, obs, c, r, m, t, posterior_decoding=False):
         newM[:] = m[e]
         M.append(newM)
 
-    pi_, T_, E_ = model.run(r, c, time_breakpoints, M)
+    pi_, T_, E_ = model.run(r, c, time_breakpoints, M, col_map=col_map)
     assert not any(isnan(pi_))
     assert not any(isnan(T_))
     assert not any(isnan(E_))
@@ -94,14 +99,11 @@ def logLikelihood(model, obs, c, r, m, t, posterior_decoding=False):
     else:
         return logL
 
-def optimize2(file_in, model, seqnames, init, cb=None):
-    obs = readObservations(file_in, seqnames)
-    nbps = model.nbreakpoints
-    logL = [None, _logLikelihood_2, _logLikelihood_3][len(nbps) - 1]
-    return fmin(lambda x: -logL(model, obs, x[0], x[1], x[2], 0.25*x[3], x[3]), init, callback=cb)
-
+# Should not be called directly, create your own version with the params
+# needed.
 def optimize(file_in, model, seqnames, init, cb=None):
-    obs = readObservations(file_in, seqnames)
+    assert False
+    obs, col_map = readObservations(file_in, seqnames)
     nbps = model.nbreakpoints
     logL = [None, _logLikelihood_2, _logLikelihood_3][len(nbps) - 1]
     return fmin(lambda x: -logL(model, obs, *x), init, callback=cb)

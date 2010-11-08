@@ -31,10 +31,10 @@ def callback(x):
 def logL(model, obs, c, r, t):
     if min([c,r,t]) < 0:
         return -1e18
-    return logLikelihood(model, obs, [c,c], [r,r], [0,0], [0.0,t])
+    return logLikelihood(model, obs, None, [c,c], [r,r], [0,0], [0.0,t])
 
 def optimize(file_in, model, seqnames, init, cb=None):
-    obs = readObservations(file_in, seqnames)
+    obs, col_map = readObservations(file_in, seqnames)
     nbps = model.nbreakpoints
     return fmin(lambda x: -logL(model, obs, *x), init, callback=cb)
 

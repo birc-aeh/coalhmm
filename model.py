@@ -94,7 +94,7 @@ class Model:
             res[a,b] = 1
         return matrix(res)
 
-    def run(self, R, C, epoch_bps, M=None):
+    def run(self, R, C, epoch_bps, M=None, col_map=None):
         """Generates the parts needed for the HMM.
         Inititial state probabilities,
         Transition matrix, and
@@ -128,6 +128,15 @@ class Model:
             return sum(L)/len(L)
         theta = 1 / avg([avg(l) for l in C])
 
+        # If no col_map is given, we assume that only A,C,G and T are possible
+        if col_map == None:
+            acgt = ['A', 'C', 'G', 'T']
+            def i_to_cols(value, n):
+                return map(lambda i: acgt[(value >> 2*i) & 3], xrange(n))
+            col_map = dict()
+            for i in xrange(1 << nleaves*2):
+                col_map.setdefault(tuple(i_to_cols(i, nleaves)), len(col_map))
+
         if M == None:
             M = [identity(nleaves)] * nepochs
 
@@ -137,7 +146,8 @@ class Model:
         for x in epoch_bps:
             for t in x:
                 breakpoints.append(t)
-        Em = build_emission_matrix(tmap.keys(), tmap, self.nleaves, breakpoints, theta)
+        Em = build_emission_matrix(tmap.keys(), tmap, col_map,\
+                self.nleaves, breakpoints, theta)
 
         def genRateMatrix(n_states,edges,**mapping):
             def f(t, pa, pb):
