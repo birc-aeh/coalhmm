@@ -13,12 +13,14 @@ def readObservations(filename, seq_names):
     alignments = readAlignment(filename)
 
     first = alignments[seq_names[0]]
-    to_val = {'A':0,'C':1,'G':2,'T':3}
     cols = [[] for _ in range(len(first))]
+    legal = set(['A', 'C', 'G', 'T', 'N', '-'])
     for i, seq_name in enumerate(seq_names):
         seq = alignments[seq_name]
         for n in xrange(len(seq)):
             v = seq[n-1]
+            if v not in legal:
+                v = 'N'
             cols[n].append(v)
     col_map = dict()
     obs = Sequence(len(first))
