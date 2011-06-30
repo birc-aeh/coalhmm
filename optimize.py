@@ -11,21 +11,19 @@ from itertools import izip
 
 def readObservations(filename, seq_names):
     alignments = readAlignment(filename)
+    srcs = [(i, alignments[name]) for i, name in enumerate(seq_names)]
 
-    first = alignments[seq_names[0]]
-    cols = [[] for _ in range(len(first))]
     legal = set(['A', 'C', 'G', 'T', 'N', '-'])
-    for i, seq_name in enumerate(seq_names):
-        seq = alignments[seq_name]
-        for n in xrange(len(seq)):
-            v = seq[n-1]
-            if v not in legal:
-                v = 'N'
-            cols[n].append(v)
     col_map = dict()
+    first = alignments[seq_names[0]]
     obs = Sequence(len(first))
-    for i, col in enumerate(cols):
-        v = col_map.setdefault(tuple(col), len(col_map))
+    tmp = [0 for n in seq_names]
+    for i in xrange(len(first)):
+        for j, src in srcs:
+            s = src[i]
+            tmp[j] = s in legal and s or 'N'
+        col = tuple(tmp)
+        v = col_map.setdefault(col, len(col_map))
         obs[i] = v
     return obs, col_map
 
