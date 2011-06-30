@@ -44,12 +44,12 @@ def _logLikelihood_3(model, obs, c, r, m, t1, t2):
         return -1e18
     return logLikelihood(model, obs, None, [c, c, c], [r, r, r], [m, m, m], [0.0, t1, t2])
 
-def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
+def default_bps(model, c, r, t):
     noBrPointsPerEpoch = model.nbreakpoints
     nleaves = model.nleaves
     nepochs = len(noBrPointsPerEpoch)
-    time_breakpoints = []
-    all_time_breakpoints = []
+    ebps = []
+    bps = []
     for e in xrange(0, nepochs):
         theta = 1.0 / c[e]
         nbps = noBrPointsPerEpoch[e]
@@ -57,9 +57,16 @@ def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
             new_bps = [(x*theta+t[e]) for x in expon.ppf([float(i)/nbps for i in xrange(nbps)])]
         else:
             new_bps = linspace(t[e], t[e+1], nbps+1)[:nbps]
-        time_breakpoints.append(new_bps)
-        for bp in new_bps:
-            all_time_breakpoints.append(bp)
+        ebps.append(new_bps)
+        bps.extend(new_bps)
+    return bps, ebps
+
+
+def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
+    noBrPointsPerEpoch = model.nbreakpoints
+    nleaves = model.nleaves
+    nepochs = len(noBrPointsPerEpoch)
+    all_time_breakpoints, time_breakpoints = default_bps(model, c, r, t)
 
     M = []
     for e in xrange(len(noBrPointsPerEpoch)):
@@ -97,7 +104,11 @@ def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
         hmm.backward(obs, scales, B)
         PD = HMMMatrix(L,k)
         hmm.posterior_decoding(obs, F, B, scales, PD)
-        return logL, PD, all_time_breakpoints, pi_
+        #pi_count = HMMVector(k)
+        #T_count = HMMMatrix(*T_.shape)
+        #E_count = HMMMatrix(*E_.shape)
+        #hmm.baum_welch(obs, F, B, scales, pi_count, T_count, E_count)
+        return logL, PD, all_time_breakpoints #, pi_, pi_count, T_count, E_count
     else:
         return logL
 

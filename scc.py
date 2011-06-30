@@ -122,21 +122,25 @@ class SCCGraph:
             for link in links:
                 yield c, link
 
-    def __init__(self, states, edges, epoch=0):
+    def __init__(self, states, edges, epoch=0, has_migration=False):
         if states == None and edges == None:
             return
         self.original_edges = edges
         self.original_states = states
         self.states_rev = {}
+        self.migration = has_migration
         for k, v in states.iteritems():
             self.states_rev[v] = k
 
         edges2 = [[] for i in xrange(len(states))]
-        for (a,t,pop_a,pop_b,b) in edges:
+        for (a,(t,pop_a,pop_b),b) in edges:
             edges2[a].append(b)
         self.V, self.E, self.containing_c = _build_scc(states, edges2)
         self.projection_cache = {}
         self.state_tuples = [tuple(self.V[v]) for v in xrange(len(self.V))]
+
+    def has_migration(self):
+        return self.migration
 
     def originalGraph(self):
         return self.original_states, self.original_edges

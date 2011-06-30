@@ -1,4 +1,6 @@
 from scipy import *
+from statespace_generator import IM
+from coal_time_computer import CoalTimeComputer
 iset = frozenset
 
 def _only(s):
@@ -11,9 +13,9 @@ def _only(s):
 # Instead of a matrix we can calculate JC directly
 def _jukes_cantor(a, b, dt):
     if a == b:
-        return 0.25 + 0.75 * exp(-4.0/3.0*dt)
+        return 0.25 + 0.75 * exp(-4.0/3*dt)
     else:
-        return 0.25 - 0.25 * exp(-4.0/3.0*dt)
+        return 0.25 - 0.25 * exp(-4.0/3*dt)
 
 _to_val = {'A':0,'C':1,'G':2,'T':3}
 def _leaf_prob(cols, species):
@@ -25,18 +27,17 @@ def _leaf_prob(cols, species):
         res[_to_val[symbol]] = 1.0
         return res
 
-def _emission_row(tree, cols, times, theta):
+def _emission_row(tree, cols, times, theta, interval_to_epoch, cts):
     # m calculates the time in an interval that should be used for further
     # calculation. There is a special case at the end where the time goes to
     # infinity, where we return theta.
     def m(i):
         if i + 1 >= len(times):
-            dt = 0.0
-            a = 0.0
+            return times[-1] + theta
         else:
-            dt = times[i+1] - times[i]
-            a = exp(-dt/theta)
-        return times[i] + theta - (dt * a)/(1 - a)
+            t1 = times[i]
+            t2 = times[i+1]
+            return cts[interval_to_epoch[i]](t1, t2)
 
     # Calculates emission probs for a tree.
     # This is done bottom-up, by giving each leaf 1.0 for the symbol it
@@ -56,6 +57,8 @@ def _emission_row(tree, cols, times, theta):
             prob_j = ones(4)
             for m_i, prob_i in map(visit, children):
                 dt = m_j - m_i
+                #print "dt:", j, dt
+                #assert m_i == 0
                 prob = zeros(4)
                 for y in xrange(4):
                     for x in xrange(4):
@@ -68,13 +71,38 @@ def _emission_row(tree, cols, times, theta):
 
 
 def build_emission_matrix(topologies, tmap, col_map, nleaves,
-        interval_times, theta):
+        interval_times, interval_to_epoch, theta, Qs, G, rates):
     npossible_cols = len(col_map)
+
+    def coalTimeSimple(t1, t2):
+        dt = t2 - t1
+        a = exp(-dt/theta)
+        return t1 + theta - (dt * a)/(1 - a)
+
+    cts = {}
+    for e in range(len(Qs)):
+        cts[e] = coalTimeSimple
     res = zeros((len(tmap), npossible_cols))
     for topo, topo_i in tmap.iteritems():
+        interval, _ = topo
+        e = interval_to_epoch[interval]
+        if e in cts:
+            ct = cts[e]
+        else:
+            e_start = 0
+            for j in range(len(interval_to_epoch)):
+                if interval_to_epoch[j] == e:
+                    e_start = j
+                    break
+            e_G = G.G[e]
+            rate = rates[interval]
+            if e_G.has_migration():
+                states, transitions = IM(range(2)).compute_state_space()
+                ct = CoalTimeComputer(rate, states, transitions, interval_times[e_start])
+                cts[e] = ct
         temp_res = []
         for cols, cols_v in col_map.iteritems():
-            row = _emission_row(topo, cols, interval_times, theta)
+            row = _emission_row(topo, cols, interval_times, theta, interval_to_epoch, cts)
             res[topo_i, cols_v] = row
 
     # The index of the matrix is [topo, variant (AAA, AAC, etc.)]

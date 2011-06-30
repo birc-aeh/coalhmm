@@ -14,7 +14,7 @@ class CoalSystem(object):
     the function that translates the pre-set into the post-set.
 
     For convenience, the pre-set is give as just the tokens (so not a
-    set but a normal list of argumennts).
+    set but a normal list of arguments).
 
     The post-set should always be a set or a list of sets, since it is
     otherwise hard to figure out if the transition produces single
@@ -37,8 +37,7 @@ class CoalSystem(object):
     error and the state space exploration will be aborted.
     '''
 
-    def __init__(self, species):
-        self.species = species
+    def __init__(self):
         self.transitions = []
         self.state_numbers = None
 
@@ -79,7 +78,7 @@ class CoalSystem(object):
 
 
     def compute_state_space(self):
-        '''Computes the CTMC system for "species".'''
+        '''Computes the CTMC system.'''
         initial_states = self.initial_state()
 
         seen = set(initial_states)
@@ -103,7 +102,7 @@ class CoalSystem(object):
                     seen.add(ss)
 
                 m = self.state_numbers[ss]
-                edges.append((n,t,pop_a,pop_b,m))
+                edges.append((n,(t,pop_a,pop_b),m))
 
         remapping = {}
         mapped_state_numbers = {}
@@ -112,7 +111,7 @@ class CoalSystem(object):
         for k, v in self.state_numbers.iteritems():
             mapped_state_numbers[k] = remapping[v]
         self.state_numbers = mapped_state_numbers
-        edges = [(remapping[a],t,pa,pb,remapping[b]) for a,t,pa,pb,b in edges]
+        edges = [(remapping[a],(t,pa,pb),remapping[b]) for a,(t,pa,pb),b in edges]
         return self.state_numbers, edges
 
 
@@ -147,11 +146,12 @@ class BasicCoalSystem(CoalSystem):
         initial state, but that doesn't matter much since we just need
         a state in an initial connected component for this to work...
         '''
-        return [iset([(0,(iset([s]),iset([s]))) for s in self.species])]
+        return self.init
 
     def __init__(self, species):
-        CoalSystem.__init__(self, species)
+        CoalSystem.__init__(self)
         self.transitions = [[('R',self.recombination)], [('C',self.coalesce)]]
+        self.init = [iset([(0,(iset([s]),iset([s]))) for s in species])]
 
 class SeperatedPopulationCoalSystem(CoalSystem):
     def recombination(self, token):
@@ -193,12 +193,12 @@ class SeperatedPopulationCoalSystem(CoalSystem):
         return self.init
 
     def __init__(self, species, initial_states=None, legal_migrations=None):
-        CoalSystem.__init__(self, species)
+        CoalSystem.__init__(self)
         self.transitions = [
                 [('R',self.recombination), ('M', self.migrate)],
                 [('C',self.coalesce)]]
         if initial_states == None:
-            self.init = [iset([(s,(iset([s]),iset([s]))) for s in self.species])]
+            self.init = [iset([(s,(iset([s]),iset([s]))) for s in species])]
         else:
             self.init = initial_states
         if legal_migrations:
@@ -207,9 +207,66 @@ class SeperatedPopulationCoalSystem(CoalSystem):
             #        "Self-migrations is not allowed"
         else:
             self.legal_migrations = {}
-            for s in self.species:
-                self.legal_migrations[s] = []#[s2 for s2 in self.species if s != s2]
+            for s in species:
+                self.legal_migrations[s] = []
+
+class IM(CoalSystem):
+
+    def migrate(self, token):
+        '''Move nucleotides from one population to another'''
+        pop, nuc = token
+        res = [(pop,pop2,iset([(pop2,nuc)])) for pop2 in self.legal_migrations[pop]]
+        return res
+
+    def coalesce(self, token1, token2):
+        '''Construct a new token by coalescening "token1" and "token2".'''
+        pop1, nuc1 = token1
+        pop2, nuc2 = token2
+        if pop1 != pop2: return -1, -1, None # abort transition...
+
+        return pop1, pop1, iset([(pop1,nuc1.union(nuc2))])
+
+    def initial_state(self):
+        '''Build the initial state for this system.
+
+        This doesn't necessarily mean that there is only a single
+        initial state, but that doesn't matter much since we just need
+        a state in an initial connected component for this to work...
+        '''
+        return self.init
+
+    def __init__(self, samples, populations = None):
+        CoalSystem.__init__(self)
+
+        if populations is None:
+            populations = dict((sample,sample) for sample in samples)
+
+        self.populations = [pop for sample,pop in populations.items()]
+
+        self.transitions = [
+            [('M', self.migrate)],
+            [('C',self.coalesce)]]
+
+        self.init = [iset([(populations[s],iset([s])) for s in samples])]
+
+        self.legal_migrations = {}
+        for p in self.populations:
+            self.legal_migrations[p] = [p2 for p2 in self.populations if p != p2]
+
+def pretty_lineage(lin):
+    '''Pretty representation of a lineage.'''
+    return ''.join(str(e) for e in lin)
+
+def pretty_state(s):
+    '''Pretty textual representation of a state ...'''
+    return [(pop,pretty_lineage(lin)) for (pop,lin) in s]
+
+def pretty_coal_class(s):
+    '''Pretty textual representation of a state, showing not the
+    populations but only which lineages have coalesced.'''
+    return '/'.join(pretty_lineage(lin) for _,lin in s)
 
 if __name__ == "__main__":
-    pass
+    system = IM(range(2))
+    print system.compute_state_space()
 

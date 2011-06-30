@@ -4,7 +4,7 @@ iset = frozenset
 from itertools import izip
 
 from intervals import *
-from statespace_generator import BasicCoalSystem, SeperatedPopulationCoalSystem
+from statespace_generator import BasicCoalSystem, SeperatedPopulationCoalSystem, IM
 from scc import SCCGraph, EpochSeperatedSCCGraph
 from tree import *
 from emission_matrix import *
@@ -59,8 +59,6 @@ class Model:
         # We assume one less breakpoint in the first epoch, because we later
         #  have to add a state where everything is seperated.
         
-        #nbreakpoints[0] = nbreakpoints[0] - 1 FIXME
-
         for s in enumerate_all_transitions(paths, nbreakpoints):
             # FIXME: instead of removing the first component in the path,
             # we shouldn't have it there to begin with...
@@ -74,8 +72,6 @@ class Model:
             ppn = path_prefix_numbers
             prefixes = [ppn.setdefault(s[:i+1], len(ppn)) for i in xrange(len(s))]
             paths_prefix_ids.append(prefixes)
-
-        #nbreakpoints[0] = nbreakpoints[0] + 1 # bump it back up again FIXME
 
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
@@ -146,32 +142,35 @@ class Model:
         for x in epoch_bps:
             for t in x:
                 breakpoints.append(t)
-        Em = build_emission_matrix(tmap.keys(), tmap, col_map,\
-                self.nleaves, breakpoints, theta)
 
-        def genRateMatrix(n_states,edges,**mapping):
-            def f(t, pa, pb):
-                if t == 'M':
-                    return mapping[t][pa,pb]
-                return mapping[t][pa]
-            M = asmatrix(zeros((n_states, n_states)))
-            for (a,t,pop_a,pop_b,b) in edges:
-                assert a != b
-                M[a,b] = f(t,pop_a,pop_b)
-            assert all(M >= 0)
+        def genRateMatrix(n_states, transitions, rates):
+            Q = asmatrix(zeros((n_states, n_states)))
+            for (src, transition, dst) in transitions:
+                Q[src,dst] = rates[transition]
             for i in xrange(n_states):
-                row = M[i, :]
-                M[i,i] = -sum(row)
-            return M
+                row = Q[i, :]
+                Q[i,i] = -sum(row)
+            return Q
 
         Qs = []
         in_epoch = []
         all_sizes = []
+        all_rates = []
         for e in xrange(len(epoch_bps)):
             V, E = G.originalGraph(e)
-            Q = genRateMatrix(len(V), E, C=C[e], R=R[e], M=M[e])
+            rates = dict()
+            pops = range(nleaves)
+            for pa in pops:
+                for pb in pops:
+                    if pa == pb:
+                        rates[('C',pa,pb)] = C[e][pa]
+                        rates[('R',pa,pb)] = R[e][pa]
+                    if pa != pb:
+                        rates[('M',pa,pb)] = M[e][pa,pb]
+            Q = genRateMatrix(len(V), E, rates)
             nbps = len(epoch_bps[e])
             Qs = Qs + [Q] * (nbps)
+            all_rates = all_rates + [rates] * nbps
             in_epoch = in_epoch + [e] * nbps
             all_sizes = all_sizes + [epoch_sizes[e]] * nbps
         assert len(Qs) == len(breakpoints)
@@ -245,6 +244,9 @@ class Model:
         pi = sum(J, axis=1)
         # The transitions have to be normalized
         T = J/pi
+
+        Em = build_emission_matrix(tmap.keys(), tmap, col_map,\
+                self.nleaves, breakpoints, in_epoch, theta, Qs, G, all_rates)
         return pi, T, Em
 
 def build_epoch_seperated_scc(nleaves, mappings, migration=None):
@@ -263,13 +265,13 @@ def build_epoch_seperated_scc(nleaves, mappings, migration=None):
         migration = [None] * (1 + len(mappings))
     statespace = SeperatedPopulationCoalSystem(range(nleaves), legal_migrations=migration[0])
     states, edges = statespace.compute_state_space()
-    SCCs = [SCCGraph(states, edges, 0)]
+    SCCs = [SCCGraph(states, edges, 0, migration[0]!=None)]
     epoch = 1
     for mapping in mappings:
         init = [iset([(mapping[p], tok) for (p, tok) in x]) for x in states]
         statespace = SeperatedPopulationCoalSystem(range(nleaves), init, migration[epoch])
         states, edges = statespace.compute_state_space()
-        G = SCCGraph(states, edges, epoch)
+        G = SCCGraph(states, edges, epoch, migration[epoch]!=None)
         epoch += 1
         G.add_transitive_edges()
         SCCs.append(G)
