@@ -1,6 +1,19 @@
 def enumerate_all_path_distributions(componentList, noTimePoints):
     '''Creates all sequences of noTimePoints time points assigned
     components componentList in a monotone sequence.'''
+    res = []
+    def _sub_seq_builder(pointsLeft, compsLeft, acc=[]):
+        if pointsLeft == 0:
+            res.append(tuple(acc))
+        else:
+            for i,comp in enumerate(compsLeft):
+                _sub_seq_builder(pointsLeft-1, compsLeft[i:], acc+[comp])
+    _sub_seq_builder(noTimePoints, componentList)
+    return res
+
+def enumerate_all_path_distributions_old(componentList, noTimePoints):
+    '''Creates all sequences of noTimePoints time points assigned
+    components componentList in a monotone sequence.'''
 
     def _sub_seq_generator(pointsLeft, compsLeft):
         if pointsLeft == 0:
