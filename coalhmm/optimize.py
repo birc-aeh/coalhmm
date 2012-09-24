@@ -68,10 +68,10 @@ def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
     assert not any(isnan(pi))
     assert not any(isnan(T))
     assert not any(isnan(E))
-    logL = inline_light_forward(
-            array(log(pi), dtype=float32),
-            array(log(T.T), dtype=float32),
-            array(log(E.T), dtype=float32), obs)
+    logL = inline_forward_scaled(
+            array((pi), dtype=float32),
+            array((T), dtype=float32),
+            array((E), dtype=float32), obs)
     assert logL == logL
     return logL
 
