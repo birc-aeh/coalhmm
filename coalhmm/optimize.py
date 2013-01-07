@@ -6,12 +6,15 @@ from mini_hmm import *
 from scipy.optimize import fmin
 from itertools import izip
 
-def readObservations(filename, seq_names):
+def readObservations(filename, seq_names, col_map=None):
     alignments = readAlignment(filename)
     srcs = [(i, alignments[name]) for i, name in enumerate(seq_names)]
 
-    legal = set(['A', 'C', 'G', 'T', 'N', '-'])
-    col_map = dict()
+    legal = set(['A', 'C', 'G', 'T', 'N'])
+    if col_map != None:
+        col_map = col_map.copy()
+    else:
+        col_map = dict()
     first = alignments[seq_names[0]]
     #obs = Sequence(len(first))
     obs = zeros(len(first), dtype=int16)

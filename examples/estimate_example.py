@@ -28,11 +28,14 @@ from scipy.optimize import fmin
 # def zipHMM_single_logL(pi, T, E, obs):
 #     return obs.forward(pi, T, E)
 
-# When calculating the model needs a 'column map'. It maps from a column of
-# symbols to a value in the sequence of observations.
+
+# When calculating the emission probabilities the model needs a 'column map'
+# that tells it what symbols a value in the observations corresponds to.
+# The map is specified in the reverse order though, so it's a mapping from a
+# column of symbols to the value that will appear in the observation sequence.
+# Since an inverse of the map is made it must be a 1-to-1 mapping.
 # In this example we assume JC69 so we have three values, one for two equal
 # symbols, one for two different symbols and one for unknown data.
-# An inverse of the map is made so it must be a 1-to-1 mapping.
 FIXED_COL_MAP = {
             ('A','A'): 0,
             ('A','C'): 1,
@@ -74,20 +77,6 @@ def estimate_IM(model, obs, T1, T2, M, C, R, outfile="/dev/null"):
     est, L, _, _, _ = optimize_f(model, obs, logL_all, (T1,T2,M,C,R))
     #       logL.   estimates
     return (L,      list(est))
-
-def estimate_ILS(model, obs, T1, T2, C, R, outfile="/dev/null"):
-    def logL_all(model, all_obs, t1, t2, c, r):
-        if min([t1,t2,c,r]) <= 0 or t2 <= t1:
-            return -1e18
-        res = 0
-        for obs, colmap in all_obs:
-            res += logLikelihood(model, obs, colmap, [c]*3, [r]*3, [0.0]*3, [0.0,t1,t2])
-        os.system("echo '%s' >> %s" % ('\t'.join(map(str, [t1,t2,c, r, res])), outfile))
-        return res
-    os.system("echo '%s' > %s" % ('\t'.join(map(str, ["t1","t2", "c", "r", "logL"])), outfile))
-    est, L, _, _, _ = optimize_f(model, obs, logL_all, (T1,T2,C,R))
-    #       logL.   estimates
-    return (L, list(est))
 
 
 
@@ -162,18 +151,6 @@ elif current_model == 'IM':
     nstates = len(modelIM.tree_map)
     names = ["hg18", "pantro2"]
     init_IM =  (4.0e6*u, 5.0e6*u, i_m/2*i_c, i_c, i_r)
-elif current_model == 'ILS':
-    # Creating an isolation model with three species is done by merging species
-    # pairwise.
-    # Note: will not work without a modified read_observations method. The one
-    # in coalhmm.optimize can be used.
-    modelILS = build_epoch_seperated_model(
-            3,
-            [[0,0,1], [0,0]],
-            [1,estates,estates])
-    nstates = len(modelILS.tree_map)
-    names = ["bonobo", "pantro2", "hg18"]
-    init_ILS = (1.0e6*u, 4.5e6*u, i_c, i_r)
 
 all_obs = []
 total_L = 0
@@ -188,8 +165,6 @@ if current_model == 'I':
     L, est = estimate_I(modelI,     all_obs, *init_I,   outfile="/dev/stdout")
 elif current_model == 'IM':
     L, est = estimate_IM(modelIM,   all_obs, *init_IM,  outfile="/dev/stdout")
-elif current_model == 'ILS':
-    L, est = estimate_ILS(modelILS, all_obs, *init_ILS, outfile="/dev/stdout")
 else:
     assert False
 
