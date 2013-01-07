@@ -3,7 +3,6 @@ from scipy.stats import expon
 from model import build_simple_model, build_epoch_seperated_model
 from fasta_parser import readAlignment
 from mini_hmm import *
-#from pyhmmlib import *
 from scipy.optimize import fmin
 import sys
 import os.path
@@ -69,57 +68,40 @@ def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
     assert not any(isnan(T))
     assert not any(isnan(E))
     logL = inline_forward_scaled(
-            array((pi), dtype=float32),
-            array((T), dtype=float32),
-            array((E), dtype=float32), obs)
+            array((pi), dtype=float64),
+            array((T), dtype=float64),
+            array((E), dtype=float64), obs)
     assert logL == logL
     return logL
 
-    # pi_, T_, E_ = model.run(r, c, time_breakpoints, M, col_map=col_map)
-    # print "called."
-    # assert not any(isnan(pi_))
-    # assert not any(isnan(T_))
-    # assert not any(isnan(E_))
-    # T_ = T_.transpose()
-    # E_ = E_.transpose()
+def mini_hmm_forward(pi, T, E, obs):
+    return inline_forward_scaled(pi, T, E, obs)
 
-    # k = T_.shape[0]
-    # L = obs.len()
+def mini_hmm_prepare(pi, T, E):
+    return (array(pi, dtype=float64),
+            array(T, dtype=float64),
+            array(E, dtype=float64))
 
-    # pi = HMMVector(k)
-    # T = HMMMatrix(*T_.shape)
-    # E = HMMMatrix(*E_.shape)
+def logL_multiseq(model, all_obs, col_map, c, r, m, t, prepare_matrices=mini_hmm_prepare, single_logL=mini_hmm_forward):
+    noBrPointsPerEpoch = model.nbreakpoints
+    nleaves = model.nleaves
+    nepochs = len(noBrPointsPerEpoch)
+    all_time_breakpoints, time_breakpoints = default_bps(model, c, r, t)
 
-    # copyTable(T, T_)
-    # copyTable(E, E_)
-    # for i,v in enumerate(pi_):
-    #     pi[i] = v
+    M = []
+    for e in xrange(len(noBrPointsPerEpoch)):
+        newM = identity(nleaves)
+        newM[:] = m[e]
+        M.append(newM)
 
-    # hmm = HMM(pi, T, E)
-    # F = HMMMatrix(L,k)
-    # scales = HMMVector(L)
-    # hmm.forward(obs, scales, F)
-    # logL = hmm.likelihood(scales)
-    # assert logL == logL
-    # if posterior_decoding:
-    #     B = HMMMatrix(L,k)
-    #     hmm.backward(obs, scales, B)
-    #     PD = HMMMatrix(L,k)
-    #     hmm.posterior_decoding(obs, F, B, scales, PD)
-    #     #pi_count = HMMVector(k)
-    #     #T_count = HMMMatrix(*T_.shape)
-    #     #E_count = HMMMatrix(*E_.shape)
-    #     #hmm.baum_welch(obs, F, B, scales, pi_count, T_count, E_count)
-    #     return logL, PD, all_time_breakpoints #, pi_, pi_count, T_count, E_count
-    # else:
-    #     return logL
-
-# Should not be called directly, create your own version with the params
-# needed.
-def optimize(file_in, model, seqnames, init, cb=None):
-    assert False
-    obs, col_map = readObservations(file_in, seqnames)
-    nbps = model.nbreakpoints
-    logL = [None, _logLikelihood_2, _logLikelihood_3][len(nbps) - 1]
-    return fmin(lambda x: -logL(model, obs, *x), init, callback=cb)
+    pi, T, E = model.run(r, c, time_breakpoints, M, col_map=col_map)
+    assert not any(isnan(pi))
+    assert not any(isnan(T))
+    assert not any(isnan(E))
+    pi, T, E = prepare_matrices(pi,T,E)
+    logL = 0.0
+    for obs in all_obs:
+        logL += single_logL(pi,T,E,obs)
+    assert logL == logL
+    return logL
 
