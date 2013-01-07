@@ -249,7 +249,7 @@ class Model:
                 self.nleaves, breakpoints, in_epoch, theta, Qs, G, all_rates)
         return pi, T, Em
 
-def build_epoch_seperated_scc(nleaves, mappings, migration=None):
+def build_epoch_separated_scc(nleaves, mappings, migration=None):
     '''Takes in a number of species, and a series of projections to build a
     SCC graph, seperated in to epochs.
     The projections (or mappings) consists of arrays - each species is given
@@ -257,7 +257,7 @@ def build_epoch_seperated_scc(nleaves, mappings, migration=None):
     find the new index.
     Merging species 0 and 1 out of three would be [0,0,1].
     
->>> proj, g = build_epoch_seperated_scc(3, [[0, 0, 0]])
+>>> proj, g = build_epoch_separated_scc(3, [[0, 0, 0]])
 >>> g.getEpochSizes()
 [8, 203]
     '''
@@ -291,6 +291,7 @@ def build_epoch_seperated_scc(nleaves, mappings, migration=None):
                 tmp_proj.append(m)
         projections.append(tmp_proj)
     return projections, G
+build_epoch_seperated_scc = build_epoch_separated_scc
 
 def build_simple_model(nleaves, bps):
     '''Creates a model using the simple statespace, where all leaves are
@@ -302,14 +303,15 @@ def build_simple_model(nleaves, bps):
 ((3, 3), (3, 16))'''
     return Model(nleaves, [bps])
 
-def build_epoch_seperated_model(nleaves, mappings, epoch_nbps, migration=None):
-    '''Creates a model seperated in to epochs.
+def build_epoch_separated_model(nleaves, mappings, epoch_nbps, migration=None):
+    '''Creates a model separated in to epochs.
 
->>> m = build_epoch_seperated_model(2, [], [3])
->>> m = build_epoch_seperated_model(2, [[0,0]], [2,3])'''
+>>> m = build_epoch_separated_model(2, [], [3])
+>>> m = build_epoch_separated_model(2, [[0,0]], [2,3])'''
     assert len(mappings) == len(epoch_nbps) - 1
     mappings, G = build_epoch_seperated_scc(nleaves, mappings, migration)
     return Model(nleaves, epoch_nbps, G, mappings)
+build_epoch_seperated_model = build_epoch_separated_model
 
 if __name__ == "__main__":
     import doctest
