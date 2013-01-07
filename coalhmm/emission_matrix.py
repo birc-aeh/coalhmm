@@ -1,4 +1,4 @@
-from scipy import *
+from scipy import array, zeros, exp, ones, matrix
 from statespace_generator import IM
 from coal_time_computer import CoalTimeComputer
 iset = frozenset

@@ -1,13 +1,13 @@
-from scipy import *
+from scipy import zeros
 import scipy.weave as weave
 import numpy as np
 
 def inline_forward_scaled(Pi, T, E, obs):
     k = len(T)
     L = len(obs)
-    An = zeros((L,k), dtype='float64')
-    C = zeros(L, dtype='float64')
-    D = zeros(k, dtype='float64')
+    An = zeros((L,k), dtype=np.float64)
+    C = zeros(L, dtype=np.float64)
+    D = zeros(k, dtype=np.float64)
     Ew = E.shape[1]
 
     code = """
@@ -51,7 +51,7 @@ def inline_forward_scaled(Pi, T, E, obs):
 def inline_forward(Pi, T, E, obs):
     k = len(T)
     L = len(obs)
-    A = zeros((L,k), dtype='float64')
+    A = zeros((L,k), dtype=np.float64)
     Ew = E.shape[1]
 
     code = """
@@ -83,7 +83,7 @@ def inline_forward(Pi, T, E, obs):
 def inline_light_forward(Pi, T, E, obs):
     k = len(T)
     L = len(obs)
-    A = zeros((2,k), dtype='float64')
+    A = zeros((2,k), dtype=np.float64)
     Ew = E.shape[1]
 
     code = """

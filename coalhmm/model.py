@@ -1,4 +1,4 @@
-from scipy import *
+from scipy import identity, asmatrix
 from scipy.linalg import expm
 iset = frozenset
 from itertools import izip
@@ -149,7 +149,7 @@ class Model:
                 Q[src,dst] = rates[transition]
             for i in xrange(n_states):
                 row = Q[i, :]
-                Q[i,i] = -sum(row)
+                Q[i,i] = -row.sum()
             return Q
 
         Qs = []
@@ -180,7 +180,7 @@ class Model:
             dt = breakpoints[j+1] - breakpoints[j]
             P = expm(Qs[j]*dt)
             assert dt >= 0
-            assert all(P >= 0)
+            assert (P >= 0).all()
             e = in_epoch[j]
             if in_epoch[j+1] != e:
                 fromSize = all_sizes[j]
@@ -192,19 +192,19 @@ class Model:
 
         # Calculate the joint probability for a path through the graph
         # (The path must have an entry for each time interval)
-        def joint_prob(sizes, path):
-            # An extra state is added, as all paths should start in state 0,
-            # meaning all species are seperate.
-            pi_prev = zeros(sizes[0])
-            pi_prev[0] = 1.0
-            for i in xrange(len(path)-1):
-                P_i = Ps[i]
-                pi_curr = zeros(sizes[i+1])
-                for s in path[i+1]:
-                    for x in path[i]:
-                        pi_curr[s] += P_i[x, s] * pi_prev[x]
-                pi_prev = pi_curr
-            return sum(pi_curr)
+        # def joint_prob(sizes, path):
+        #     # An extra state is added, as all paths should start in state 0,
+        #     # meaning all species are seperate.
+        #     pi_prev = zeros(sizes[0])
+        #     pi_prev[0] = 1.0
+        #     for i in xrange(len(path)-1):
+        #         P_i = Ps[i]
+        #         pi_curr = zeros(sizes[i+1])
+        #         for s in path[i+1]:
+        #             for x in path[i]:
+        #                 pi_curr[s] += P_i[x, s] * pi_prev[x]
+        #         pi_prev = pi_curr
+        #     return sum(pi_curr)
 
         joint_prob_cache = {}
         def joint_prob_cached(sizes, path, path_prefix_ids):
@@ -241,7 +241,7 @@ class Model:
         # TODO: reasonable epsilon?
         assert abs(total_joint - 1.0) < 0.0001
         # The starting probabilities are equal to the row-sums of J
-        pi = sum(J, axis=1)
+        pi = J.sum(axis=1)
         # The transitions have to be normalized
         T = J/pi
 

@@ -1,12 +1,9 @@
-from scipy import *
+from scipy import array, zeros, linspace, isnan, identity, any, float64, int16
 from scipy.stats import expon
 from model import build_simple_model, build_epoch_seperated_model
 from fasta_parser import readAlignment
 from mini_hmm import *
 from scipy.optimize import fmin
-import sys
-import os.path
-import time
 from itertools import izip
 
 def readObservations(filename, seq_names):
@@ -17,8 +14,8 @@ def readObservations(filename, seq_names):
     col_map = dict()
     first = alignments[seq_names[0]]
     #obs = Sequence(len(first))
-    obs = array([0]*len(first), dtype=int16)
-    tmp = [0 for n in seq_names]
+    obs = zeros(len(first), dtype=int16)
+    tmp = [0 for _ in seq_names]
     for i in xrange(len(first)):
         for j, src in srcs:
             s = src[i]
@@ -35,7 +32,6 @@ def copyTable(dst, src):
 
 def default_bps(model, c, r, t):
     noBrPointsPerEpoch = model.nbreakpoints
-    nleaves = model.nleaves
     nepochs = len(noBrPointsPerEpoch)
     ebps = []
     bps = []
@@ -51,10 +47,9 @@ def default_bps(model, c, r, t):
     return bps, ebps
 
 
-def logLikelihood(model, obs, col_map, c, r, m, t, posterior_decoding=False):
+def logLikelihood(model, obs, col_map, c, r, m, t):
     noBrPointsPerEpoch = model.nbreakpoints
     nleaves = model.nleaves
-    nepochs = len(noBrPointsPerEpoch)
     all_time_breakpoints, time_breakpoints = default_bps(model, c, r, t)
 
     M = []
@@ -85,7 +80,6 @@ def mini_hmm_prepare(pi, T, E):
 def logL_multiseq(model, all_obs, col_map, c, r, m, t, prepare_matrices=mini_hmm_prepare, single_logL=mini_hmm_forward):
     noBrPointsPerEpoch = model.nbreakpoints
     nleaves = model.nleaves
-    nepochs = len(noBrPointsPerEpoch)
     all_time_breakpoints, time_breakpoints = default_bps(model, c, r, t)
 
     M = []
