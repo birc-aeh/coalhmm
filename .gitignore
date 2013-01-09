@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 build
 .DS_Store
 coalhmm/.DS_Store
 examples/.DS_Store
+=======
+
+.DS_Store
+>>>>>>> Ignore .DS_Store files on mac
