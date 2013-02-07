@@ -56,9 +56,7 @@ class Model:
         # prefixes of p. So the paths aaa and aab might be [0,1,2] and [0,1,3].
         # This is used later to do cache lookups without hasing a full path.
         paths_prefix_ids = []
-        # We assume one less breakpoint in the first epoch, because we later
-        #  have to add a state where everything is seperated.
-        
+
         for s in enumerate_all_transitions(paths, nbreakpoints):
             # FIXME: instead of removing the first component in the path,
             # we shouldn't have it there to begin with...
