@@ -3,11 +3,10 @@ import scipy.weave as weave
 import numpy as np
 
 def inline_forward_scaled(pi, T, E, obs):
-    forward, logL = calc_forward_and_logL(pi, T, E, obs)
+    forward, scales, logL = calc_forward(pi, T, E, obs)
     return logL
 
-
-def calc_forward_and_logL(pi, T, E, obs):
+def calc_forward(pi, T, E, obs):
     k = len(T)
     L = len(obs)
     An = zeros((L,k), dtype=np.float64)
@@ -47,9 +46,37 @@ def calc_forward_and_logL(pi, T, E, obs):
         x += log(C[t]);
     return_val = x;
     """
-
     res = weave.inline(code,
             ['k', 'L', 'An', 'C', 'D', 'pi', 'T', 'E', 'obs', 'Ew'],
             compiler="gcc")
-    return An, res
+    return An, C, res
+
+def calc_forward_backward(pi, T, E, obs):
+    A, C, logL = calc_forward(pi, T, E, obs)
+    k = len(T)
+    L = len(obs)
+    Ew = E.shape[1]
+    B = zeros((L,k), dtype=np.float64)
+    B[L-1,:] = 1.0
+    code = """
+    #line 62 "mini_hmm.py"
+    int n, i, j;
+    double x;
+    for (n = L - 2; n >= 0; n--)
+    {
+        for (i = 0; i < k; i++)
+        {
+            x = 0.0;
+            for (j = 0; j < k; j++)
+            {
+                x += A[(n+1)*k + j]*E[obs[n+1] + j*Ew]*T[j*k + i];
+            }
+            B[n*k + i] = x/C[n+1];
+        }
+    }
+    """
+    weave.inline(code,
+            ['k', 'L', 'A', 'C', 'B', 'T', 'E', 'obs', 'Ew'],
+            compiler="gcc")
+    return A, B, logL
 
