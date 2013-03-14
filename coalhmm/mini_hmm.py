@@ -26,7 +26,7 @@ def calc_forward(pi, T, E, obs):
         An[0*k + i] = pi[i] * E[obs[0] + i*Ew] / C_n;
     for (t = 1; t < L; t++)
     {
-        o = obs[t-1];
+        o = obs[t];
         for (j = 0; j < k; j++)
         {
             x = 0;
@@ -62,21 +62,23 @@ def calc_forward_backward(pi, T, E, obs):
     #line 62 "mini_hmm.py"
     int n, i, j;
     double x;
-    for (n = L - 2; n >= 0; n--)
+    int symb;
+    for (n = L - 1; n > 0; n--)
     {
+        symb = obs[n];
         for (i = 0; i < k; i++)
         {
             x = 0.0;
             for (j = 0; j < k; j++)
             {
-                x += A[(n+1)*k + j]*E[obs[n+1] + j*Ew]*T[j*k + i];
+                x += B[n*k + j]*E[symb + j*Ew]*T[i*k + j];
             }
-            B[n*k + i] = x/C[n+1];
+            B[(n-1)*k + i] = x/C[n];
         }
     }
     """
     weave.inline(code,
-            ['k', 'L', 'A', 'C', 'B', 'T', 'E', 'obs', 'Ew'],
+            ['k', 'L', 'C', 'B', 'T', 'E', 'obs', 'Ew'],
             compiler="gcc")
-    return A, B, logL
+    return A, B, C, logL
 
