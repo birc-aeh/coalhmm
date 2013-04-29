@@ -38,8 +38,13 @@ def default_bps(model, c, r, t):
     nepochs = len(noBrPointsPerEpoch)
     ebps = []
     bps = []
+    def avg(xs):
+        if isinstance(xs, list):
+            return sum(xs)/len(xs)
+        else:
+            return xs
     for e in xrange(0, nepochs):
-        theta = 1.0 / c[e]
+        theta = 1.0 / avg(c[e])
         nbps = noBrPointsPerEpoch[e]
         if e == nepochs - 1:
             new_bps = [(x*theta+t[e]) for x in expon.ppf([float(i)/nbps for i in xrange(nbps)])]
