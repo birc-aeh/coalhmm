@@ -10,7 +10,18 @@ def main():
     usage="""%prog [options] <input> <input format> <output dir>
 
 This program reads in an input sequence in any format supported by BioPython
-and writes out a preprocessed file ready for use with zipHMM."""
+and writes out a preprocessed file ready for use with zipHMM.
+Also supports gzipped input files, if the name ends with `.gz`.
+
+Assumption #1: Either the file is a pairwise alignment, or you have provided
+exactly two names to the `--names` option.
+
+Assumption #2: The file uses a simple ACGT format (and N/-). Anything else will
+be interpreted as N and a warning will be given with all unknown symbols.
+
+Warning: This program uses SeqIO.to_dict to read in the entire alignment, you
+may want to split the alignment first if it's very large.
+"""
 
 
     parser = OptionParser(usage=usage, version="%prog 1.0")
