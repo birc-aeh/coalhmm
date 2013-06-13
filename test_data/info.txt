@@ -1,0 +1,12 @@
+The I and IM folders contain 10Mbp of simulated pairwise alignment each,
+divided in to chunks of 1Mbp.
+
+The parameters used to simulate the data are as follows:
+g = 20
+u = 1e-9
+i_r = 0.4
+i_N = 50000.0
+i_c = 1.0/(2*g*u*i_N) # 500
+i_tmigb = 2.0e6*u
+i_tsplit = 4.0e6*u
+i_m = 100.0
