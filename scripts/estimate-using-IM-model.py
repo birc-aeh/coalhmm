@@ -52,10 +52,10 @@ def estimate_IM(model, obs, T1, T2, M, C, R, outfile="/dev/null"):
         res = logLikelihood(model, all_obs, [c]*3, [r]*3, [0.0,m,0.0], [0.0,t1,t2])
         print >>outfile, '\t'.join(map(str, [now(), t1,t2,m, c, r, res]))
         return res
-    print >>outfile, '\t'.join(map(str, ["time", "t1","t2","M", "c", "r", "logL"]))
+    print >>outfile, '\t'.join(map(str, ["time", "T1","T2","M", "C", "R", "logL"]))
     est, L, _, _, _ = optimize_f(model, obs, logL_all, (T1,T2,M,C,R))
     #       logL,   t1,t2,m,c,r
-    return (L,      est)
+    return (-L,      est)
 
 def log_unfinished_line(s):
     print s,
@@ -84,7 +84,7 @@ two species, uniform coalescence/recombination rate and two way migration."""
                       help="Log for all points estimated in the optimization (/dev/null)")
     optimized_params = [
             ('migtime', 'migration time', 0.5e6),
-            ('coaltime', 'coalescence time', 1e6),
+            ('splittime', 'split time', 1e6),
             ('migrate', 'migration rate', 125.0),
             ('Ne', 'effective population size', 20e3),
             ('recomb', 'recombination rate', 0.1),
@@ -145,16 +145,16 @@ two species, uniform coalescence/recombination rate and two way migration."""
     mu = options.mu
     g = options.g
     Tmig = options.migtime * mu
-    Tcoal = options.coaltime * mu
+    Tsplit = options.splittime * mu
     M = options.migrate
     C = 1.0/(g*mu*2*options.Ne)
     R = options.recomb
     with open(options.tmpfile, 'w') as tmpfile:
-        L, est = estimate_IM(modelIM, forwarders, Tmig, Tcoal, M, C, R, outfile=tmpfile)
+        L, est = estimate_IM(modelIM, forwarders, Tmig, Tsplit, M, C, R, outfile=tmpfile)
     vals = "\t".join(map(str,est))
     with open(options.outfile, 'w') as outfile:
         if options.include_header:
-            print >>outfile, 'logL\tTmig\tTcoal\tM\tC\tR'
+            print >>outfile, 'logL\tTmig\tTsplit\tM\tC\tR'
         print >>outfile, "%f\t%s" % (L,vals)
 
 if __name__ == "__main__":

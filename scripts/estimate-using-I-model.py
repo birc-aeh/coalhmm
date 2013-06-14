@@ -55,7 +55,7 @@ def estimate_I(model, obs, T, C, R, outfile):
     print >>outfile, '\t'.join(map(str, ["time", "t", "c", "r", "logL"]))
     est, L, _, _, _ = optimize_f(model, obs, logL_all, (T,C,R))
     #       logL   t,c,r
-    return (L,     est)
+    return (-L,     est)
 
 def log_unfinished_line(s):
     print s,
@@ -150,7 +150,7 @@ and uniform coalescence/recombination rate."""
     vals = "\t".join(map(str,est))
     with open(options.outfile, 'w') as outfile:
         if options.include_header:
-            print >>outfile, 'logL\tTcoal\tC\tR'
+            print >>outfile, 'logL\tT\tC\tR'
         print >>outfile, "%f\t%s" % (L,vals)
 
 if __name__ == "__main__":
