@@ -5,4 +5,6 @@ examples/.DS_Store
 test_data/analysis
 test_data/I-results-I.txt
 test_data/I-results-IM.txt
+test_data/IM-results-I.txt
+test_data/IM-results-IM.txt
 *~
