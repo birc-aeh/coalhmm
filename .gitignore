@@ -2,3 +2,7 @@ build
 .DS_Store
 coalhmm/.DS_Store
 examples/.DS_Store
+test_data/analysis
+test_data/I-results-I.txt
+test_data/I-results-IM.txt
+*~
