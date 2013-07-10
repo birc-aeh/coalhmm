@@ -97,7 +97,8 @@ may want to split the alignment first if it's very large.
     if options.verbose:
         print "zipHMM  is preprocessing...",
         sys.stdout.flush()
-    f = Forwarder(seqFilename = foutname, nObservables = 3, nStatesSave=[])
+    f = Forwarder.fromSequence(seqFilename = foutname,
+                               alphabetSize = 3, minNoEvals = 500)
     os.remove(foutname)
     if options.verbose:
         print "done"
@@ -107,7 +108,7 @@ may want to split the alignment first if it's very large.
         sys.stdout.flush()
     if not os.path.exists(output_dirname):
         os.makedirs(output_dirname)
-    f.printToDirectory(output_dirname)
+    f.writeToDirectory(output_dirname)
     if options.verbose:
         print "done"
 

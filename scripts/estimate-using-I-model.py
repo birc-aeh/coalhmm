@@ -131,7 +131,7 @@ and uniform coalescence/recombination rate."""
         log = log_finished_line
 
     logu("Loading forwarders...")
-    forwarders = [Forwarder(dir) for dir in args]
+    forwarders = [Forwarder.fromDirectory(dir) for dir in args]
     log("done")
 
     logu("Constructing model...")
