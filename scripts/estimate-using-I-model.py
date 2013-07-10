@@ -83,7 +83,7 @@ and uniform coalescence/recombination rate."""
                       default="/dev/null",
                       help="Log for all points estimated in the optimization (/dev/null)")
     optimized_params = [
-            ('coaltime', 'coalescence time', 1e6),
+            ('splittime', 'split time', 1e6),
             ('Ne', 'effective population size', 20e3),
             ('recomb', 'recombination rate', 0.1),
             ]
@@ -117,7 +117,7 @@ and uniform coalescence/recombination rate."""
                       dest="verbose",
                       action="store_true",
                       default=False,
-                      help="Print some stuff")
+                      help="Print help")
 
     (options, args) = parser.parse_args()
     if len(args) < 1:
@@ -142,16 +142,20 @@ and uniform coalescence/recombination rate."""
 
     mu = options.mu
     g = options.g
-    T = options.coaltime * mu
+    T = options.splittime * mu
     C = 1.0/(g*mu*2*options.Ne)
     R = options.recomb
+    
     with open(options.tmpfile, 'w') as tmpfile:
         L, est = estimate_I(modelI, forwarders, T, C, R, outfile=tmpfile)
+    
     vals = "\t".join(map(str,est))
     with open(options.outfile, 'w') as outfile:
         if options.include_header:
             print >>outfile, 'logL\tT\tC\tR'
         print >>outfile, "%f\t%s" % (L,vals)
+        
+    
 
 if __name__ == "__main__":
     main()
