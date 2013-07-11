@@ -1,4 +1,5 @@
-import os, sys
+import os, os.path, sys
+import errno
 from optparse import OptionParser
 
 from pyZipHMM import Matrix, posteriorDecoding
@@ -45,13 +46,18 @@ def get_model_matrices(model, C, R, T):
         M.append(newM)
 
     pi, T, E = model.run(r, c, time_breakpoints, M, col_map=FIXED_COL_MAP)
-    return pi, T, E
+    return pi, T, E, time_breakpoints[1]
 
-def log_unfinished_line(s):
-    print s,
-    sys.stdout.flush()
-def log_finished_line(s):
-    print s
+def print_matrix(matrix, fout):
+    no_states = matrix.getHeight()
+    seq_len = matrix.getWidth()
+
+    for line in xrange(seq_len):
+        sep = ''
+        for state in xrange(no_states):
+            fout.write('%s%f' % (sep, matrix[state,line]))
+            sep = '\t'
+        fout.write('\n')
 
 def main():
     usage="""%prog [options] <forwarder dirs>
@@ -67,11 +73,7 @@ model with two species and uniform coalescence/recombination rate."""
                       type="string",
                       default="/dev/stdout",
                       help="Output file for the estimate (/dev/stdout)")
-    parser.add_option("--tmpfile",
-                      dest="tmpfile",
-                      type="string",
-                      default="/dev/null",
-                      help="Log for all points estimated in the optimization (/dev/null)")
+
     optimized_params = [
             ('T', 'split time'),
             ('C', 'Coalescence rate'),
@@ -87,59 +89,59 @@ model with two species and uniform coalescence/recombination rate."""
                       type="int",
                       default=10,
                       help="Number of sub intervals used to discretize the time (10)")
-    parser.add_option("--header",
-                      dest="include_header",
+    parser.add_option("--no-header",
+                      dest="no_header",
                       action="store_true",
                       default=False,
-                      help="Include a header on the output")
-    parser.add_option("-v", "--verbose",
-                      dest="verbose",
-                      action="store_true",
-                      default=False,
-                      help="Print help")
+                      help="Do not include the header in the output")
 
     (options, args) = parser.parse_args()
     if len(args) < 1:
         parser.error("Needs at least one preprocessed sequence to work on")
 
-    if not options.verbose:
-        log = lambda s: None
-        logu = lambda s: None
-    else:
-        logu = log_unfinished_line
-        log = log_finished_line
-
-    logu("Constructing model...")
-    intervals = options.intervals
-    model = build_epoch_seperated_model(2, [[0,0]], [1,intervals])
-    log("done")
-
-
-    T = options.T 
-    C = options.C
-    R = options.R
+    split_time = options.T 
+    coal_rate  = options.C
+    rec_rate   = options.R
     
-    if T is None:
+    if split_time is None:
         print 'You must specify the split time.'
         sys.exit(2)
-    if C is None:
+    if coal_rate is None:
         print 'You must specify the coalescence rate.'
         sys.exit(2)
-    if R is None:
+    if rec_rate is None:
         print 'You must specify the recombination rate.'
         sys.exit(2)
     
+    intervals = options.intervals
+    model = build_epoch_seperated_model(2, [[0,0]], [1,intervals])
 
-    logu("Preparing the HMM...")    
-    mpi, mT, mE = get_model_matrices(model, C, R, T)
+    mpi, mT, mE, time_breaks = get_model_matrices(model, coal_rate, rec_rate, split_time)
     pi,   T,  E = zipHMM_prepare_matrices(mpi, mT, mE)
-    log("done")
 
+    with open(options.outfile,'w') as fout:
+    
+        if not options.no_header:
+            print >> fout, '## Posterior probabilities for isolation model.'
+            print >> fout, '# intervals =', intervals
+            print >> fout, '# T =', split_time
+            print >> fout, '# C =', coal_rate
+            print >> fout, '# R =', rec_rate
+            print >> fout, '# time_breaks =', ' '.join(map(str, time_breaks))
+    
+        try:
+            for ziphmmdir in args:    
+                seqfile = os.path.join(ziphmmdir, 'original_sequence')
+                _, pdTable = posteriorDecoding(seqfile, pi, T, E)
+                print_matrix(pdTable, fout)
+                
+        except IOError as e:
+            if e.errno == errno.EPIPE:
+                sys.exit(0) # the pipe died, this is probably because it is in
+                            # a shell pipe where we have stopped reading
+            else:
+                raise e
 
-    for ziphmmdir in args:    
-        logu("Computing posterior table for %s..."%ziphmmdir)
-        pdPath, pdTable = posteriorDecoding(ziphmmdir, pi, T, E)
-        log("done")
     
     
     

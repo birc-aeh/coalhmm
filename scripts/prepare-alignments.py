@@ -1,4 +1,4 @@
-import os, sys
+import os, os.path, sys
 import gzip
 import tempfile
 from optparse import OptionParser
@@ -99,7 +99,6 @@ may want to split the alignment first if it's very large.
         sys.stdout.flush()
     f = Forwarder.fromSequence(seqFilename = foutname,
                                alphabetSize = 3, minNoEvals = 500)
-    os.remove(foutname)
     if options.verbose:
         print "done"
 
@@ -109,6 +108,7 @@ may want to split the alignment first if it's very large.
     if not os.path.exists(output_dirname):
         os.makedirs(output_dirname)
     f.writeToDirectory(output_dirname)
+    os.rename(foutname, os.path.join(output_dirname, 'original_sequence'))
     if options.verbose:
         print "done"
 
