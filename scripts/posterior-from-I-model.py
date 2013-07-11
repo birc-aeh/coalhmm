@@ -48,19 +48,20 @@ def get_model_matrices(model, C, R, T):
     pi, T, E = model.run(r, c, time_breakpoints, M, col_map=FIXED_COL_MAP)
     return pi, T, E, time_breakpoints[1]
 
-def print_matrix(matrix, fout):
+def print_matrix(matrix, seqname, first_pos, fout):
     no_states = matrix.getHeight()
     seq_len = matrix.getWidth()
 
+    pos = first_pos
     for line in xrange(seq_len):
-        sep = ''
+        fout.write('%s\t%d' % (seqname, pos))
+        pos += 1        
         for state in xrange(no_states):
-            fout.write('%s%f' % (sep, matrix[state,line]))
-            sep = '\t'
+            fout.write('\t%f' % matrix[state,line])
         fout.write('\n')
 
 def main():
-    usage="""%prog [options] <forwarder dirs>
+    usage="""%prog [options] <forwarder dir>
 
 This program calculates the posterior state probabilities of an isolation
 model with two species and uniform coalescence/recombination rate."""
@@ -73,6 +74,18 @@ model with two species and uniform coalescence/recombination rate."""
                       type="string",
                       default="/dev/stdout",
                       help="Output file for the estimate (/dev/stdout)")
+
+    parser.add_option("-n", "--seq-name",
+                      dest="seq_name",
+                      type="string",
+                      default="sequence",
+                      help="Name of the sequence. Used in the output for tabix indexing")
+    parser.add_option("-p", "--first-pos",
+                      dest="first_pos",
+                      type="int",
+                      default=0,
+                      help="Position in the sequence where the first element is."
+                        "Used in the output for tabix indexing. Default 1.")
 
     optimized_params = [
             ('T', 'split time'),
@@ -96,8 +109,8 @@ model with two species and uniform coalescence/recombination rate."""
                       help="Do not include the header in the output")
 
     (options, args) = parser.parse_args()
-    if len(args) < 1:
-        parser.error("Needs at least one preprocessed sequence to work on")
+    if len(args) != 1:
+        parser.error("Needs a preprocessed sequence to work on")
 
     split_time = options.T 
     coal_rate  = options.C
@@ -133,7 +146,7 @@ model with two species and uniform coalescence/recombination rate."""
             for ziphmmdir in args:    
                 seqfile = os.path.join(ziphmmdir, 'original_sequence')
                 _, pdTable = posteriorDecoding(seqfile, pi, T, E)
-                print_matrix(pdTable, fout)
+                print_matrix(pdTable, options.seq_name, options.first_pos, fout)
                 
         except IOError as e:
             if e.errno == errno.EPIPE:
