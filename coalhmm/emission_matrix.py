@@ -21,7 +21,7 @@ _to_val = {'A':0,'C':1,'G':2,'T':3}
 def _leaf_prob(cols, species):
     symbol = cols[species]
     if symbol in ['N', '-']:
-        return array([0.25, 0.25, 0.25, 0.25]) # FIXME: assumes JC
+        return ones(4)
     else:
         res = array(zeros(4))
         res[_to_val[symbol]] = 1.0
