@@ -4,6 +4,7 @@ from optparse import OptionParser
 
 from pyZipHMM import Matrix, posteriorDecoding
 from scipy import identity
+from numpy import array
 
 import coalhmm
 from coalhmm.model import build_epoch_seperated_model
