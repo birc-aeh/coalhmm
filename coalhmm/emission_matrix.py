@@ -72,7 +72,7 @@ def _emission_row(tree, cols, times, theta, interval_to_epoch, cts):
 
 def build_emission_matrix(topologies, tmap, col_map, nleaves,
         interval_times, interval_to_epoch, theta, Qs, G, rates):
-    npossible_cols = len(col_map)
+    npossible_cols = len(set(col_map.values()))
 
     def coalTimeSimple(t1, t2):
         dt = t2 - t1
@@ -103,7 +103,7 @@ def build_emission_matrix(topologies, tmap, col_map, nleaves,
         temp_res = []
         for cols, cols_v in col_map.iteritems():
             row = _emission_row(topo, cols, interval_times, theta, interval_to_epoch, cts)
-            res[topo_i, cols_v] = row
+            res[topo_i, cols_v] += row
 
     # The index of the matrix is [topo, variant (AAA, AAC, etc.)]
     return matrix(res)
