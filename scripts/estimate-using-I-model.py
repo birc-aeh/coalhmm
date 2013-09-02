@@ -18,9 +18,15 @@ def optimize_f(model, obs, f_logL, init):
 
 FIXED_COL_MAP = {
             ('A','A'): 0,
-            ('A','C'): 1,
+            ('C','C'): 0,
+            ('G','G'): 0,
+            ('T','T'): 0,
             ('N','N'): 2
             }
+for a in 'ACGT':
+    for b in 'ACGT':
+        if a != b:
+            FIXED_COL_MAP[(a,b)] = 1
 
 def zipHMM_prepare_matrices(mpi, mT, mE):
     pi = Matrix(mpi.shape[0], 1)
