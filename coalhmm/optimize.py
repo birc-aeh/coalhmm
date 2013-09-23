@@ -85,7 +85,7 @@ def mini_hmm_prepare(pi, T, E):
             array(T, dtype=float64),
             array(E, dtype=float64))
 
-def logL_multiseq(model, all_obs, col_map, c, r, m, t, prepare_matrices=mini_hmm_prepare, single_logL=mini_hmm_forward):
+def generate_matrices(model, col_map, c, r, m, t):
     noBrPointsPerEpoch = model.nbreakpoints
     nleaves = model.nleaves
     all_time_breakpoints, time_breakpoints = default_bps(model, c, r, t)
@@ -100,6 +100,10 @@ def logL_multiseq(model, all_obs, col_map, c, r, m, t, prepare_matrices=mini_hmm
     assert not any(isnan(pi))
     assert not any(isnan(T))
     assert not any(isnan(E))
+    return pi, T, array(E)
+
+def logL_multiseq(model, all_obs, col_map, c, r, m, t, prepare_matrices=mini_hmm_prepare, single_logL=mini_hmm_forward):
+    pi, T, E = generate_matrices(model, col_map, c, r, m, t)
     pi, T, E = prepare_matrices(pi,T,E)
     logL = 0.0
     for obs in all_obs:
