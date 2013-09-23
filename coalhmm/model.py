@@ -1,4 +1,4 @@
-from scipy import identity, asmatrix
+from scipy import identity, asmatrix, newaxis
 from scipy.linalg import expm
 iset = frozenset
 from itertools import izip
@@ -240,8 +240,10 @@ class Model:
         assert abs(total_joint - 1.0) < 0.0001
         # The starting probabilities are equal to the row-sums of J
         pi = J.sum(axis=1)
+        assert abs(pi.sum() - 1.0) < 0.0001
         # The transitions have to be normalized
-        T = J/pi
+        T = J/pi[:,newaxis]
+        assert all(abs(row.sum() - 1.0) < 0.0001 for row in T)
 
         Em = build_emission_matrix(tmap.keys(), tmap, col_map,\
                 self.nleaves, breakpoints, in_epoch, theta, Qs, G, all_rates)
