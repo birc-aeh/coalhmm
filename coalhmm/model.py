@@ -1,4 +1,4 @@
-from scipy import identity, asmatrix, newaxis
+from scipy import identity, asmatrix, newaxis, zeros, array
 from scipy.linalg import expm
 iset = frozenset
 from itertools import izip
@@ -208,21 +208,26 @@ class Model:
         def joint_prob_cached(sizes, path, path_prefix_ids):
             def jp(i):
                 if i == 0:
-                    res = zeros(sizes[0])
-                    res[0] = 1.0
+                    res = zeros((1,sizes[0]))
+                    res[0,0] = 1.0
                     return res
+                    
                 sub_path = path_prefix_ids[i-1]
                 if sub_path in joint_prob_cache:
                     return joint_prob_cache[sub_path]
+                
                 P_i = Ps[i-1]
                 pi_prev = jp(i-1)
-                pi_curr = zeros(sizes[i])
-                for s in path[i]:
-                    for x in path[i-1]:
-                        pi_curr[s] += P_i[x, s] * pi_prev[x]
+                
+                Y = array(pi_prev * P_i)
+                y = zeros(sizes[i])
+                y[array(path[i])] = 1.0
+                pi_curr = Y * y
+                
                 joint_prob_cache[sub_path] = pi_curr
                 return pi_curr
-            return sum(jp(len(path)-1))
+
+            return jp(len(path)-1).sum()
 
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
