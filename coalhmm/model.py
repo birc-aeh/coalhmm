@@ -249,7 +249,7 @@ class Model:
                 self.nleaves, breakpoints, in_epoch, theta, Qs, G, all_rates)
         return pi, T, Em
 
-def build_epoch_separated_scc(nleaves, mappings, migration=None):
+def build_epoch_separated_scc(nleaves, mappings, migration=None, init=None):
     '''Takes in a number of species, and a series of projections to build a
     SCC graph, seperated in to epochs.
     The projections (or mappings) consists of arrays - each species is given
@@ -263,7 +263,7 @@ def build_epoch_separated_scc(nleaves, mappings, migration=None):
     '''
     if not migration:
         migration = [None] * (1 + len(mappings))
-    statespace = SeperatedPopulationCoalSystem(range(nleaves), legal_migrations=migration[0])
+    statespace = SeperatedPopulationCoalSystem(range(nleaves), initial_states=init, legal_migrations=migration[0])
     states, edges = statespace.compute_state_space()
     SCCs = [SCCGraph(states, edges, 0, migration[0]!=None)]
     epoch = 1
@@ -303,13 +303,13 @@ def build_simple_model(nleaves, bps):
 ((3, 3), (3, 16))'''
     return Model(nleaves, [bps])
 
-def build_epoch_separated_model(nleaves, mappings, epoch_nbps, migration=None):
+def build_epoch_separated_model(nleaves, mappings, epoch_nbps, migration=None, init=None):
     '''Creates a model separated in to epochs.
 
 >>> m = build_epoch_separated_model(2, [], [3])
 >>> m = build_epoch_separated_model(2, [[0,0]], [2,3])'''
     assert len(mappings) == len(epoch_nbps) - 1
-    mappings, G = build_epoch_seperated_scc(nleaves, mappings, migration)
+    mappings, G = build_epoch_seperated_scc(nleaves, mappings, migration, init)
     return Model(nleaves, epoch_nbps, G, mappings)
 build_epoch_seperated_model = build_epoch_separated_model
 
