@@ -57,11 +57,22 @@ class Model:
         # This is used later to do cache lookups without hasing a full path.
         paths_prefix_ids = []
 
+        epoch_sizes = G.getEpochSizes()
+        component_index = dict()
+        component_selectors = [None,]
+        for e,esize in enumerate(epoch_sizes):
+            for c in xrange(len(G.G[e].V)):
+                component_idx = len(component_selectors)
+                component_index[(e,c)] = component_idx
+                selector = zeros(esize)
+                selector[array(G.all_states(e,c))] = 1.0
+                component_selectors.append(selector)
+        self.component_selectors = component_selectors
         for s in enumerate_all_transitions(paths, nbreakpoints):
             # FIXME: instead of removing the first component in the path,
             # we shouldn't have it there to begin with...
             s = s[1:]
-            paths_final.append(((0,),)+tuple(G.all_states(e,p) for e,p in s))
+            paths_final.append((0,)+tuple(component_index[(e,p)] for e,p in s))
             ta = make_tree(G, s, 0)
             tb = make_tree(G, s, 1)
             a = tree_map.setdefault(ta, len(tree_map))
@@ -73,13 +84,9 @@ class Model:
 
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
-        # The paths are sorted by the prefix ids to give as much overlap as
-        # possible between to consecutive paths (so we can utilize the cache
-        # better)
-        indices = sorted(range(len(paths_final)), key=lambda i: paths_prefix_ids[i])
-        self.paths_final_indices = [paths_indices[i] for i in indices]
-        self.paths_final = [paths_final[i] for i in indices]
-        self.paths_prefix_ids = [array(paths_prefix_ids[i]) for i in indices]
+        self.paths_final_indices = paths_indices
+        self.paths_final = paths_final
+        self.paths_prefix_ids = array(paths_prefix_ids)
         self.mappings = mappings
 
     def projMatrix(self, fromSize, toSize, mapping):
@@ -220,9 +227,7 @@ class Model:
                 pi_prev = jp(i-1)
                 
                 Y = array(pi_prev * P_i)
-                y = zeros(sizes[i])
-                y[array(path[i])] = 1.0
-                pi_curr = Y * y
+                pi_curr = Y * self.component_selectors[path[i]]
                 
                 joint_prob_cache[sub_path] = pi_curr
                 return pi_curr
