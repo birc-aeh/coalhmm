@@ -80,6 +80,7 @@ class Model:
         paths_final = []
         tree_map = {}
         paths_indices = []
+        npaths = 0
         for s in enumerate_all_transitions(paths, nbreakpoints):
             # FIXME: instead of removing the first component in the path,
             # we shouldn't have it there to begin with...
@@ -90,18 +91,21 @@ class Model:
                 path_as_offsets.append(component_starts[ci])
                 path_as_offsets.append(component_ends[ci])
             path_as_offsets = array(path_as_offsets, dtype=int32)
-            paths_final.append(path_as_offsets)
+            paths_final.extend(path_as_offsets)
+            npaths += 1
 
             ta = make_tree(G, s, 0)
             tb = make_tree(G, s, 1)
             a = tree_map.setdefault(ta, len(tree_map))
             b = tree_map.setdefault(tb, len(tree_map))
-            paths_indices.append((a, b))
+            paths_indices.append(a)
+            paths_indices.append(b)
 
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
         self.paths_final_indices = paths_indices
         self.paths_final = paths_final
+        self.npaths = npaths
         self.mappings = mappings
 
     def projMatrix(self, fromSize, toSize, mapping):
@@ -281,14 +285,16 @@ class Model:
 
         all_sizes = array(all_sizes, dtype=int32)
         ntrees = len(tmap)
+        nintervals = sum(self.nbreakpoints)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
-        for p, (a,b) in izip(
-                self.paths_final,
-                self.paths_final_indices):
+        for i in xrange(self.npaths):
+            p = self.paths_final[i*2*nintervals:(i+1)*2*nintervals]
             joint = joint_prob_cached(all_sizes, p)
             assert joint >= 0
             total_joint += joint
+            a = self.paths_final_indices[i*2 + 0]
+            b = self.paths_final_indices[i*2 + 1]
             J[a, b] += joint
 
         # TODO: reasonable epsilon?
