@@ -1,14 +1,14 @@
-from scipy import identity, asmatrix, newaxis, zeros, array, int32
+from scipy import identity, matrix, newaxis, zeros, array, int32
 from scipy.linalg import expm
 import scipy.weave as weave
 iset = frozenset
 from itertools import izip
 
-from intervals import *
-from statespace_generator import BasicCoalSystem, SeperatedPopulationCoalSystem, IM
+from intervals import enumerate_all_transitions
+from statespace_generator import SeperatedPopulationCoalSystem
 from scc import SCCGraph, EpochSeperatedSCCGraph
-from tree import *
-from emission_matrix import *
+from tree import make_tree
+from emission_matrix import build_emission_matrix
 
 def prettify_state(s):
     """Convert a coal system state to something nicer.
@@ -28,18 +28,9 @@ def prettify_state(s):
 
 
 class Model:
-    def __init__(self, nleaves, nbreakpoints, G=None, mappings=[]):
+    def __init__(self, nleaves, nbreakpoints, G, mappings=[]):
         self.nleaves = nleaves
         self.nbreakpoints = nbreakpoints
-        if G == None:
-            # Build transition system
-            x = BasicCoalSystem(range(nleaves))
-            states, edges = x.compute_state_space()
-            # Build SCC graph and do transitive closure
-            sG = SCCGraph(states, edges)
-            sG.add_transitive_edges()
-            G = EpochSeperatedSCCGraph()
-            G.addSubGraph(sG)
         self.G = G
         epoch_sizes = self.G.getEpochSizes()
         self.all_sizes = []
@@ -49,9 +40,6 @@ class Model:
         paths = []
         for S in G.all_paths():
             paths.append(S[:])
-        #print "All paths"
-        #for p in paths:
-        #    print ["e%i_c%i" % (e,c) for e,c in p]
 
         epoch_sizes = G.getEpochSizes()
         component_index = dict()
@@ -103,8 +91,8 @@ class Model:
 
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
-        self.paths_final_indices = paths_indices
-        self.paths_final = paths_final
+        self.paths_final_indices = array(paths_indices, dtype=int32)
+        self.paths_final = array(paths_final, dtype=int32)
         self.npaths = npaths
         self.mappings = mappings
 
@@ -168,7 +156,7 @@ class Model:
                 breakpoints.append(t)
 
         def genRateMatrix(n_states, transitions, rates):
-            Q = asmatrix(zeros((n_states, n_states)))
+            Q = matrix(zeros((n_states, n_states)))
             for (src, transition, dst) in transitions:
                 Q[src,dst] = rates[transition]
             for i in xrange(n_states):
@@ -230,21 +218,29 @@ class Model:
         #     return sum(pi_curr)
 
         P_i_sizes = array([0]+[P_i.shape[0] for P_i in Ps], dtype=int32)
-        self.P_i_offsets = P_i_sizes.cumsum()
-        self.Pstart = zeros(P_i_sizes.sum())
+        P_i_offsets = P_i_sizes.cumsum(dtype=int32)
+        Pstart = zeros(P_i_sizes.sum())
         for i, P_i in enumerate(Ps):
-            a = self.P_i_offsets[i]
-            b = self.P_i_offsets[i+1]
-            self.Pstart[a:b] = P_i[:]
-        self.pi_offsets = array([1]+all_sizes, dtype=int32).cumsum()
+            a = P_i_offsets[i]
+            b = P_i_offsets[i+1]
+            Pstart[a:b] = P_i[:]
+        pi_offsets = array([1]+all_sizes, dtype=int32).cumsum(dtype=int32)
         pi_buffer = zeros(sum(all_sizes)+1)
-        def joint_prob_cached(sizes, path_as_offsets):
-            code = """
+        components_flat = self.components_flat
+
+        joint_prob_code = """
+        double joint_prob(
+            int nintervals,
+            double *pi_buffer, int *pi_offsets,
+            double *Pstart, int *P_i_offsets,
+            int *components_flat, int *sizes,
+            int *path_as_offsets)
+        {
             int Sp = 0, Sc = 0;
             double *pi_curr = 0;
             double *pi_prev = pi_buffer;
             pi_prev[0] = 1.0;
-            for (int i = 0; i < PATH_LEN-1; i++)
+            for (int i = 0; i < nintervals-1; i++)
             {
                 int pa = path_as_offsets[2*i     + 0];
                 int pb = path_as_offsets[2*i     + 1];
@@ -267,37 +263,47 @@ class Model:
             double res = 0.0;
             for (int i = 0; i < Sc; i++)
                 res += pi_curr[i];
-            return_val = res;
-            """
-            components_flat = self.components_flat
-            pi_buffer[:] = 0.0
-            pi_offsets = self.pi_offsets
-            Pstart = self.Pstart
-            P_i_offsets = self.P_i_offsets
-            PATH_LEN = len(path_as_offsets)/2
+            return res;
+        }
+        """
 
-            return weave.inline(code,
-                    ['sizes', 'pi_buffer', 'pi_offsets',
-                        'Pstart', 'P_i_offsets',
-                        'PATH_LEN',
-                        'components_flat', 'path_as_offsets'],
-                    compiler='gcc')
-
+        call_join_prob_code = """
+        double total_joint = 0.0;
+        for (int i = 0; i < npaths; i++)
+        {
+            int *path_as_offsets = paths_final + (i*2*nintervals);
+            for (int j = 0; j < len_pi_buffer; j++)
+                pi_buffer[j] = 0;
+            double joint = joint_prob(
+                    nintervals,
+                    pi_buffer, pi_offsets,
+                    Pstart, P_i_offsets,
+                    components_flat, all_sizes,
+                    path_as_offsets);
+            int a = paths_final_indices[i*2 + 0];
+            int b = paths_final_indices[i*2 + 1];
+            J2(a, b) += joint;
+            total_joint += joint;
+        }
+        return_val = total_joint;
+        """
         all_sizes = array(all_sizes, dtype=int32)
         ntrees = len(tmap)
         nintervals = sum(self.nbreakpoints)
+        npaths = self.npaths
+        paths_final = self.paths_final
+        paths_final_indices = self.paths_final_indices
+        len_pi_buffer = len(pi_buffer)
         J = zeros((ntrees,ntrees))
-        total_joint = 0.0
-        for i in xrange(self.npaths):
-            p = self.paths_final[i*2*nintervals:(i+1)*2*nintervals]
-            joint = joint_prob_cached(all_sizes, p)
-            assert joint >= 0
-            total_joint += joint
-            a = self.paths_final_indices[i*2 + 0]
-            b = self.paths_final_indices[i*2 + 1]
-            J[a, b] += joint
+        total_joint = weave.inline(call_join_prob_code,
+                arg_names=['nintervals', 'npaths',
+                    'paths_final', 'paths_final_indices',
+                    'pi_buffer', 'pi_offsets', 'len_pi_buffer',
+                    'components_flat', 'Pstart', 'P_i_offsets',
+                    'J', 'all_sizes'],
+                support_code=joint_prob_code,
+                compiler='gcc')
 
-        # TODO: reasonable epsilon?
         assert abs(total_joint - 1.0) < 0.0001
         # The starting probabilities are equal to the row-sums of J
         pi = J.sum(axis=1)
