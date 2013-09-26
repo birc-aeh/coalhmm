@@ -156,13 +156,13 @@ class Model:
                 breakpoints.append(t)
 
         def genRateMatrix(n_states, transitions, rates):
-            Q = matrix(zeros((n_states, n_states)))
+            Q = zeros((n_states, n_states))
             for (src, transition, dst) in transitions:
                 Q[src,dst] = rates[transition]
             for i in xrange(n_states):
                 row = Q[i, :]
                 Q[i,i] = -row.sum()
-            return Q
+            return matrix(Q)
 
         Qs = []
         in_epoch = []
@@ -197,7 +197,7 @@ class Model:
                 fromSize = all_sizes[j]
                 toSize = all_sizes[j+1]
                 X = self.projMatrix(fromSize, toSize, mappings[e])
-                P = matrix(P) * matrix(X)
+                P = P * X
             Ps.append(array(P).flatten())
         assert len(Ps) == len(breakpoints) - 1
 
