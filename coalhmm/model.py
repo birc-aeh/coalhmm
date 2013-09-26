@@ -1,5 +1,6 @@
-from scipy import identity, asmatrix, newaxis, zeros, array
+from scipy import identity, asmatrix, newaxis, zeros, array, int32
 from scipy.linalg import expm
+import scipy.weave as weave
 iset = frozenset
 from itertools import izip
 
@@ -40,6 +41,10 @@ class Model:
             G = EpochSeperatedSCCGraph()
             G.addSubGraph(sG)
         self.G = G
+        epoch_sizes = self.G.getEpochSizes()
+        self.all_sizes = []
+        for e in xrange(len(nbreakpoints)):
+            self.all_sizes.extend([epoch_sizes[e]] * nbreakpoints[e])
         # Build a list of all paths through the SCC graph
         paths = []
         for S in G.all_paths():
@@ -47,6 +52,30 @@ class Model:
         #print "All paths"
         #for p in paths:
         #    print ["e%i_c%i" % (e,c) for e,c in p]
+
+        epoch_sizes = G.getEpochSizes()
+        component_index = dict()
+        components = [(0,)]
+        for e,esize in enumerate(epoch_sizes):
+            for c in xrange(len(G.G[e].V)):
+                component = array(G.all_states(e,c))
+                component_idx = len(components)
+                components.append(component)
+                component_index[(e,c)] = component_idx
+
+        self.components_flat = zeros(sum(self.all_sizes)+1, dtype=int32)
+        component_starts = []
+        component_ends = []
+        offset = 0
+        for c in components:
+            a = offset
+            b = offset + len(c)
+            offset = b
+            assert self.components_flat[a:b].sum() == 0
+            self.components_flat[a:b] = array(c, dtype=int32)
+            component_starts.append(a)
+            component_ends.append(b)
+
         # Build all distributions of the paths over our intervals
         paths_final = []
         tree_map = {}
@@ -56,23 +85,18 @@ class Model:
         # prefixes of p. So the paths aaa and aab might be [0,1,2] and [0,1,3].
         # This is used later to do cache lookups without hasing a full path.
         paths_prefix_ids = []
-
-        epoch_sizes = G.getEpochSizes()
-        component_index = dict()
-        component_selectors = [None,]
-        for e,esize in enumerate(epoch_sizes):
-            for c in xrange(len(G.G[e].V)):
-                component_idx = len(component_selectors)
-                component_index[(e,c)] = component_idx
-                selector = zeros(esize)
-                selector[array(G.all_states(e,c))] = 1.0
-                component_selectors.append(selector)
-        self.component_selectors = component_selectors
         for s in enumerate_all_transitions(paths, nbreakpoints):
             # FIXME: instead of removing the first component in the path,
             # we shouldn't have it there to begin with...
             s = s[1:]
-            paths_final.append((0,)+tuple(component_index[(e,p)] for e,p in s))
+            cpath = (0,)+tuple(component_index[(e,p)] for e,p in s)
+            path_as_offsets = []
+            for ci in cpath:
+                path_as_offsets.append(component_starts[ci])
+                path_as_offsets.append(component_ends[ci])
+            path_as_offsets = array(path_as_offsets, dtype=int32)
+            paths_final.append(path_as_offsets)
+
             ta = make_tree(G, s, 0)
             tb = make_tree(G, s, 1)
             a = tree_map.setdefault(ta, len(tree_map))
@@ -159,7 +183,6 @@ class Model:
 
         Qs = []
         in_epoch = []
-        all_sizes = []
         all_rates = []
         for e in xrange(len(epoch_bps)):
             V, E = G.originalGraph(e)
@@ -177,9 +200,9 @@ class Model:
             Qs = Qs + [Q] * (nbps)
             all_rates = all_rates + [rates] * nbps
             in_epoch = in_epoch + [e] * nbps
-            all_sizes = all_sizes + [epoch_sizes[e]] * nbps
         assert len(Qs) == len(breakpoints)
 
+        all_sizes = self.all_sizes
         Ps = []
         for j in xrange(len(breakpoints)-1):
             dt = breakpoints[j+1] - breakpoints[j]
@@ -192,7 +215,7 @@ class Model:
                 toSize = all_sizes[j+1]
                 X = self.projMatrix(fromSize, toSize, mappings[e])
                 P = matrix(P) * matrix(X)
-            Ps.append(P)
+            Ps.append(array(P).flatten())
         assert len(Ps) == len(breakpoints) - 1
 
         # Calculate the joint probability for a path through the graph
@@ -211,29 +234,61 @@ class Model:
         #         pi_prev = pi_curr
         #     return sum(pi_curr)
 
-        joint_prob_cache = {}
-        def joint_prob_cached(sizes, path, path_prefix_ids):
-            def jp(i):
-                if i == 0:
-                    res = zeros((1,sizes[0]))
-                    res[0,0] = 1.0
-                    return res
-                    
-                sub_path = path_prefix_ids[i-1]
-                if sub_path in joint_prob_cache:
-                    return joint_prob_cache[sub_path]
-                
-                P_i = Ps[i-1]
-                pi_prev = jp(i-1)
-                
-                Y = array(pi_prev * P_i)
-                pi_curr = Y * self.component_selectors[path[i]]
-                
-                joint_prob_cache[sub_path] = pi_curr
-                return pi_curr
+        P_i_sizes = array([0]+[P_i.shape[0] for P_i in Ps], dtype=int32)
+        self.P_i_offsets = P_i_sizes.cumsum()
+        self.Pstart = zeros(P_i_sizes.sum())
+        for i, P_i in enumerate(Ps):
+            a = self.P_i_offsets[i]
+            b = self.P_i_offsets[i+1]
+            self.Pstart[a:b] = P_i[:]
+        self.pi_offsets = array([1]+all_sizes, dtype=int32).cumsum()
+        pi_buffer = zeros(sum(all_sizes)+1)
+        def joint_prob_cached(sizes, path_as_offsets, path_prefix_ids):
+            code = """
+            int Sp = 0, Sc = 0;
+            double *pi_curr = 0;
+            double *pi_prev = pi_buffer;
+            pi_prev[0] = 1.0;
+            for (int i = 0; i < PATH_LEN-1; i++)
+            {
+                int pa = path_as_offsets[2*i     + 0];
+                int pb = path_as_offsets[2*i     + 1];
+                int ca = path_as_offsets[2*(i+1) + 0];
+                int cb = path_as_offsets[2*(i+1) + 1];
+                double *P_i = Pstart + P_i_offsets[i];
+                pi_curr = pi_buffer + pi_offsets[i];
+                Sp = sizes[i]; Sc = sizes[i+1];
+                for (int t = pa; t < pb; t++)
+                {
+                    int ct = components_flat[t];
+                    for (int s = ca; s < cb; s++)
+                    {
+                        int cs = components_flat[s];
+                        pi_curr[cs] += P_i[ct*Sc + cs] * pi_prev[ct];
+                    }
+                }
+                pi_prev = pi_curr;
+            }
+            double res = 0.0;
+            for (int i = 0; i < Sc; i++)
+                res += pi_curr[i];
+            return_val = res;
+            """
+            components_flat = self.components_flat
+            pi_buffer[:] = 0.0
+            pi_offsets = self.pi_offsets
+            Pstart = self.Pstart
+            P_i_offsets = self.P_i_offsets
+            PATH_LEN = len(path_as_offsets)/2
 
-            return jp(len(path)-1).sum()
+            return weave.inline(code,
+                    ['sizes', 'pi_buffer', 'pi_offsets',
+                        'Pstart', 'P_i_offsets',
+                        'PATH_LEN',
+                        'components_flat', 'path_as_offsets'],
+                    compiler='gcc')
 
+        all_sizes = array(all_sizes, dtype=int32)
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
