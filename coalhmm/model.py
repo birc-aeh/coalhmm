@@ -80,11 +80,6 @@ class Model:
         paths_final = []
         tree_map = {}
         paths_indices = []
-        path_prefix_numbers = {}
-        # For each path, p, paths_prefix_ids contains a list numbering the
-        # prefixes of p. So the paths aaa and aab might be [0,1,2] and [0,1,3].
-        # This is used later to do cache lookups without hasing a full path.
-        paths_prefix_ids = []
         for s in enumerate_all_transitions(paths, nbreakpoints):
             # FIXME: instead of removing the first component in the path,
             # we shouldn't have it there to begin with...
@@ -102,15 +97,11 @@ class Model:
             a = tree_map.setdefault(ta, len(tree_map))
             b = tree_map.setdefault(tb, len(tree_map))
             paths_indices.append((a, b))
-            ppn = path_prefix_numbers
-            prefixes = [ppn.setdefault(s[:i+1], len(ppn)) for i in xrange(len(s))]
-            paths_prefix_ids.append(prefixes)
 
         self.tree_map = tree_map
         self.ntrees = len(tree_map)
         self.paths_final_indices = paths_indices
         self.paths_final = paths_final
-        self.paths_prefix_ids = array(paths_prefix_ids)
         self.mappings = mappings
 
     def projMatrix(self, fromSize, toSize, mapping):
@@ -243,7 +234,7 @@ class Model:
             self.Pstart[a:b] = P_i[:]
         self.pi_offsets = array([1]+all_sizes, dtype=int32).cumsum()
         pi_buffer = zeros(sum(all_sizes)+1)
-        def joint_prob_cached(sizes, path_as_offsets, path_prefix_ids):
+        def joint_prob_cached(sizes, path_as_offsets):
             code = """
             int Sp = 0, Sc = 0;
             double *pi_curr = 0;
@@ -292,11 +283,10 @@ class Model:
         ntrees = len(tmap)
         J = zeros((ntrees,ntrees))
         total_joint = 0.0
-        for p, pp, (a,b) in izip(
+        for p, (a,b) in izip(
                 self.paths_final,
-                self.paths_prefix_ids,
                 self.paths_final_indices):
-            joint = joint_prob_cached(all_sizes, p, pp)
+            joint = joint_prob_cached(all_sizes, p)
             assert joint >= 0
             total_joint += joint
             J[a, b] += joint
