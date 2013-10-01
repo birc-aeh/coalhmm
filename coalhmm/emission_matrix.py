@@ -27,18 +27,7 @@ def _leaf_prob(cols, species):
         res[_to_val[symbol]] = 1.0
         return res
 
-def _emission_row(tree, cols, times, theta, interval_to_epoch, cts):
-    # m calculates the time in an interval that should be used for further
-    # calculation. There is a special case at the end where the time goes to
-    # infinity, where we return theta.
-    def m(i):
-        if i + 1 >= len(times):
-            return times[-1] + theta
-        else:
-            t1 = times[i]
-            t2 = times[i+1]
-            return cts[interval_to_epoch[i]](t1, t2)
-
+def _emission_row(tree, cols, cost):
     # Calculates emission probs for a tree.
     # This is done bottom-up, by giving each leaf 1.0 for the symbol it
     # represents.
@@ -50,21 +39,13 @@ def _emission_row(tree, cols, times, theta, interval_to_epoch, cts):
     # At the end the node takes the product of the results for each child.
     def visit(t):
         if isinstance(t, iset): # leaf
-            return 0.0, _leaf_prob(cols, _only(t))
+            return 0, _leaf_prob(cols, _only(t))
         else: # node
             j, children = t
-            m_j = m(j)
             prob_j = ones(4)
-            for m_i, prob_i in map(visit, children):
-                dt = m_j - m_i
-                #print "dt:", j, dt
-                #assert m_i == 0
-                prob = zeros(4)
-                for y in xrange(4):
-                    for x in xrange(4):
-                        prob[y] += prob_i[x] * _jukes_cantor(x,y,dt)
-                prob_j = prob_j * prob
-            return m_j, prob_j
+            for i, prob_i in map(visit, children):
+                prob_j = prob_j * (prob_i * cost[i,j])
+            return j, prob_j
     # After calculating the emission probs for the tree, we multiply by
     # a set of weights, currently 1/4 in all entries.
     return 0.25*sum(visit(tree)[1])
@@ -79,13 +60,11 @@ def build_emission_matrix(topologies, tmap, col_map, nleaves,
         a = exp(-dt/theta)
         return t1 + theta - (dt * a)/(1 - a)
 
+    nepochs = len(Qs)
     cts = {}
-    for e in range(len(Qs)):
+    for e in range(nepochs):
         cts[e] = coalTimeSimple
-    res = zeros((len(tmap), npossible_cols))
-    for topo, topo_i in tmap.iteritems():
-        interval, _ = topo
-        e = interval_to_epoch[interval]
+    for e in range(nepochs):
         if e in cts:
             ct = cts[e]
         else:
@@ -100,9 +79,29 @@ def build_emission_matrix(topologies, tmap, col_map, nleaves,
                 states, transitions = IM(range(2)).compute_state_space()
                 ct = CoalTimeComputer(rate, states, transitions, interval_times[e_start])
                 cts[e] = ct
+
+    # m calculates the time in an interval that should be used for further
+    # calculation. There is a special case at the end where the time goes to
+    # infinity, where we return theta.
+    def m(i, times):
+        if i + 1 >= len(times):
+            return times[-1] + theta
+        else:
+            t1 = times[i]
+            t2 = times[i+1]
+            return cts[interval_to_epoch[i]](t1, t2)
+    pp_m = [m(i, interval_times) for i in range(len(interval_times))]
+    cost = zeros((nepochs,nepochs))
+    # our cost function can be easily precalculated since we use JC69
+    for i in range(nepochs):
+        for j in range(i,nepochs):
+            dt = pp_m[j] - pp_m[i]
+            cost[i,j] = _jukes_cantor(0,0,dt) + 3*_jukes_cantor(0,1,dt)
+    res = zeros((len(tmap), npossible_cols))
+    for topo, topo_i in tmap.iteritems():
         temp_res = []
         for cols, cols_v in col_map.iteritems():
-            row = _emission_row(topo, cols, interval_times, theta, interval_to_epoch, cts)
+            row = _emission_row(topo, cols, cost)
             res[topo_i, cols_v] += row
 
     # The index of the matrix is [topo, variant (AAA, AAC, etc.)]
