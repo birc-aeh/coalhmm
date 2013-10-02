@@ -1,4 +1,4 @@
-from scipy import zeros
+from scipy import zeros, array
 import scipy.weave as weave
 import numpy as np
 
@@ -81,4 +81,44 @@ def calc_forward_backward(pi, T, E, obs):
             ['k', 'L', 'C', 'B', 'T', 'E', 'obs', 'Ew'],
             compiler="gcc")
     return A, B, C, logL
+
+def baum_welch(pi, T, E, obs):
+    L = len(obs)
+    k = len(T)
+    A,B,C,logL = calc_forward_backward(pi,T,E,obs)
+    pi_counts = zeros(pi.shape)
+    T_counts = zeros(T.shape)
+    E_counts = zeros(E.shape)
+    new_pi = zeros(pi.shape)
+
+    x = obs[0]
+    for i in xrange(k):
+        tmp = A[0,i]*B[0,i]/C[i]
+        new_pi[i] = tmp
+        E_counts[i,x] += tmp
+    code = """
+    int i,j,s,x;
+    for (i = 1; i < L; i++)
+    {
+        double scale = 1.0/C[i];
+        x = obs[i];
+        for (j = 0; j < k; j++)
+        {
+            double tmp = A2(i-1,j);
+            for (s = 0; s < k; s++)
+            {
+                T_COUNTS2(j,s) += tmp * T2(j,s) * E2(s,x) * B2(i,s);
+            }
+            E_COUNTS2(j,x) += A2(i,j) * B2(i,j);
+        }
+    }
+    """
+    weave.inline(code,
+            ['k', 'L', 'A', 'B', 'C', 'T', 'E', 'obs', 'E_counts', 'T_counts'],
+            compiler="gcc")
+    new_T = T_counts / T_counts.sum(axis=1)[:,np.newaxis]
+    new_E = E_counts / E_counts.sum(axis=1)[:,np.newaxis]
+    assert all(abs(row.sum() - 1.0) < 0.001 for row in new_T)
+    assert all(abs(row.sum() - 1.0) < 0.001 for row in new_E)
+    return new_pi, new_T, new_E
 
