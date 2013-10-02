@@ -44,7 +44,11 @@ def _emission_row(tree, cols, cost):
             j, children = t
             prob_j = ones(4)
             for i, prob_i in map(visit, children):
-                prob_j = prob_j * (prob_i * cost[i,j])
+                prob = zeros(4)
+                for y in xrange(4):
+                    for x in xrange(4):
+                        prob[y] += prob_i[x] * cost[i,j,int(x!=y)]
+                prob_j = prob_j * prob
             return j, prob_j
     # After calculating the emission probs for the tree, we multiply by
     # a set of weights, currently 1/4 in all entries.
@@ -91,12 +95,13 @@ def build_emission_matrix(topologies, tmap, col_map, nleaves,
             t2 = times[i+1]
             return cts[interval_to_epoch[i]](t1, t2)
     pp_m = [m(i, interval_times) for i in range(len(interval_times))]
-    cost = zeros((nepochs,nepochs))
+    cost = zeros((nepochs,nepochs,2))
     # our cost function can be easily precalculated since we use JC69
     for i in range(nepochs):
         for j in range(i,nepochs):
-            dt = pp_m[j] - pp_m[i]
-            cost[i,j] = _jukes_cantor(0,0,dt) + 3*_jukes_cantor(0,1,dt)
+            for o in [0,1]:
+                dt = pp_m[j] - pp_m[i]
+                cost[i,j,o] = _jukes_cantor(0,o,dt)
     res = zeros((len(tmap), npossible_cols))
     for topo, topo_i in tmap.iteritems():
         temp_res = []
