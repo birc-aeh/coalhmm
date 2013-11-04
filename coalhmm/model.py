@@ -1,4 +1,4 @@
-from scipy import identity, matrix, newaxis, zeros, array, int32
+from scipy import identity, matrix, newaxis, zeros, array, int32, allclose
 from scipy.linalg import expm
 import scipy.weave as weave
 iset = frozenset
@@ -315,10 +315,10 @@ class Model:
         Em = build_emission_matrix(tmap.keys(), tmap, col_map,\
                 self.nleaves, breakpoints, in_epoch, theta, Qs, G, all_rates)
         # If we have a N column, each row will sum to 2 rather than 1
-        if Em[:,-1].sum() == len(Em[:,-1]):
-            assert all(abs(row.sum() - 2.0) < 0.0001 for row in Em)
+        if allclose(Em[:,-1].sum(), len(Em[:,-1])):
+            assert all(allclose(row.sum(), 2.0) for row in Em)
         else:
-            assert all(abs(row.sum() - 1.0) < 0.0001 for row in Em)
+            assert all(allclose(row.sum(), 1.0) for row in Em)
         return pi, T, Em
 
 def build_epoch_separated_scc(nleaves, mappings, migration=None, init=None):
