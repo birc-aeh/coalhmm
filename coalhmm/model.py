@@ -1,4 +1,4 @@
-from scipy import identity, matrix, newaxis, zeros, array, int32, allclose
+from scipy import identity, matrix, newaxis, zeros, array, int32, allclose, isnan
 from scipy.linalg import expm
 import scipy.weave as weave
 iset = frozenset
@@ -60,9 +60,11 @@ class Model:
             b = offset + len(c)
             offset = b
             assert self.components_flat[a:b].sum() == 0
+            assert 0 < b <= len(self.components_flat)
             self.components_flat[a:b] = array(c, dtype=int32)
             component_starts.append(a)
             component_ends.append(b)
+        assert all(component_ends[i] == component_starts[i+1] for i in range(len(component_ends)-1))
 
         # Build all distributions of the paths over our intervals
         paths_final = []
@@ -192,12 +194,15 @@ class Model:
             P = expm(Qs[j]*dt)
             assert dt >= 0
             assert (P >= 0).all()
+            assert (P > 0).any()
+            assert not (isnan(P).any())
             e = in_epoch[j]
             if in_epoch[j+1] != e:
                 fromSize = all_sizes[j]
                 toSize = all_sizes[j+1]
                 X = self.projMatrix(fromSize, toSize, mappings[e])
                 P = P * X
+            assert P.shape == (all_sizes[j], all_sizes[j+1])
             Ps.append(array(P).flatten())
         assert len(Ps) == len(breakpoints) - 1
 
@@ -224,11 +229,19 @@ class Model:
             a = P_i_offsets[i]
             b = P_i_offsets[i+1]
             Pstart[a:b] = P_i[:]
+            assert P_i.shape[0] == b-a
+            assert 0 < b <= len(Pstart)
         pi_offsets = array([1]+all_sizes, dtype=int32).cumsum(dtype=int32)
         pi_buffer = zeros(sum(all_sizes)+1)
         components_flat = self.components_flat
 
         joint_prob_code = """
+        #define myassert(c) do { if (!(c)) _myassert(#c, __LINE__, __FILE__); } while(0)
+        void _myassert(const char *cond_str, int line, const char *filename)
+        {
+            printf("'%s' failed @ %s:%i\\n", cond_str, filename, line);
+            exit(1);
+        }
         double joint_prob(
             int nintervals,
             double *pi_buffer, int *pi_offsets,
@@ -239,6 +252,8 @@ class Model:
             int Sp = 0, Sc = 0;
             double *pi_curr = 0;
             double *pi_prev = pi_buffer;
+            myassert(path_as_offsets[0] == 0);
+            myassert(path_as_offsets[1] == 1);
             pi_prev[0] = 1.0;
             for (int i = 0; i < nintervals-1; i++)
             {
@@ -247,14 +262,16 @@ class Model:
                 int ca = path_as_offsets[2*(i+1) + 0];
                 int cb = path_as_offsets[2*(i+1) + 1];
                 double *P_i = Pstart + P_i_offsets[i];
-                pi_curr = pi_buffer + pi_offsets[i];
+                pi_curr = pi_buffer + pi_offsets[i+1];
                 Sp = sizes[i]; Sc = sizes[i+1];
                 for (int t = pa; t < pb; t++)
                 {
                     int ct = components_flat[t];
+                    // myassert(0 <= ct && ct < Sp);
                     for (int s = ca; s < cb; s++)
                     {
                         int cs = components_flat[s];
+                        // myassert(0 <= cs && cs < Sc);
                         pi_curr[cs] += P_i[ct*Sc + cs] * pi_prev[ct];
                     }
                 }
@@ -292,6 +309,7 @@ class Model:
         nintervals = sum(self.nbreakpoints)
         npaths = self.npaths
         paths_final = self.paths_final
+        assert len(paths_final) == npaths*2*nintervals
         paths_final_indices = self.paths_final_indices
         len_pi_buffer = len(pi_buffer)
         J = zeros((ntrees,ntrees))
